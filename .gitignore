@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+tmp-build/
+
+# User and IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs and temporary files
+*.log
+*.err.log
+*.tmp
+*.temp
+
+# Test and generated output
+TestResults/
+coverage/
+output/
+
+# OS files
+Thumbs.db
+Desktop.ini
