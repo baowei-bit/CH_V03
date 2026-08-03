@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../CH_V01.Core/CH_V01.Core.csproj" />
+  <Project Path="CeHao.csproj" />
+</Solution>

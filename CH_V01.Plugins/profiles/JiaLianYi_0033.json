@@ -1,0 +1,147 @@
+﻿{
+  "Id": "JiaLianYi_0033",
+  "Name": "嘉联益 0033 ICT",
+  "CustomerName": "嘉联益",
+  "ProductName": "0033",
+  "ProtocolAdapterId": "Default.Ict",
+  "Notes": "嘉联益 CareerRule MES、嘉联益 CSV/DCL 导出、默认 ICT 下位机协议。",
+  "Configuration": {
+    "Identity": {
+      "CustomerName": "嘉联益",
+      "ProductName": "0033",
+      "TestType": "ICT",
+      "TestProgram": "FCT-V0522",
+      "StationNo": "",
+      "MachineNo": "",
+      "BarcodeLength": "12",
+      "CodeSuffix": ""
+    },
+    "Communication": {
+      "ScannerTriggerEnabled": true,
+      "ScannerTriggerCommand": "start\\r\\n",
+      "ScannerStopCommand": "",
+      "Scanner": {
+        "Name": "扫码枪",
+        "ConnectionType": 0,
+        "PortName": "COM9",
+        "BaudRate": 9600,
+        "IpAddress": "127.0.0.1",
+        "Port": 0,
+        "TimeoutMilliseconds": 3000
+      },
+      "LowerMachine": {
+        "Name": "下位机",
+        "ConnectionType": 0,
+        "PortName": "COM11",
+        "BaudRate": 115200,
+        "IpAddress": "127.0.0.1",
+        "Port": 0,
+        "TimeoutMilliseconds": 3000
+      }
+    },
+    "Mes": {
+      "Enabled": true,
+      "OnlineMode": false,
+      "EnableYieldControlUploadToMes": false,
+      "YieldControlThreshold": 90,
+      "SelectedPlugin": "JiaLianYi.CareerRule",
+      "BaseUrl": "",
+      "UserNo": "",
+      "Password": "",
+      "StationNo": "",
+      "PackNo": "",
+      "Tooling": "",
+      "ProdNo": "",
+      "AllowOfflineCache": true,
+      "PluginOptions": {
+        "PartNumber": "",
+        "Station": "",
+        "ModifyUser": "",
+        "Mechine": "",
+        "Tooling": "",
+        "JobNo": "",
+        "OperationSeq": "",
+        "ItemCode": "",
+        "Unit": "pcs",
+        "Module": "1",
+        "SwVersion": "FCT-V0522"
+      }
+    },
+    "Output": {
+      "CsvDirectory": "D:\\VisionResult\\FPC\\ProData\\",
+      "DclDirectory": "D:\\VisionResult\\FPC\\ProOut\\",
+      "LogDirectory": "D:\\VisionResult\\FPC\\Log\\",
+      "CsvName": "F3409-0021-0021CS"
+    },
+    "Export": {
+      "EnabledPluginIds": [
+        "JiaLianYi.Export"
+      ],
+      "PluginOptions": {
+        "JiaLianYi.Export": {
+          "CsvDirectory": "D:\\VisionResult\\FPC\\ProData\\",
+          "DclDirectory": "D:\\VisionResult\\FPC\\ProOut\\",
+          "CsvName": "F3409-0021-0021CS",
+          "PartNumber": "",
+          "Station": "",
+          "ModifyUser": "",
+          "Mechine": "",
+          "Tooling": "",
+          "JobNo": "",
+          "OperationSeq": "",
+          "ItemCode": "",
+          "Unit": "pcs",
+          "Module": "1",
+          "SwVersion": "FCT-V0522"
+        }
+      }
+    },
+    "Compatibility": {
+      "ProjectProfileId": "JiaLianYi_0033",
+      "ProtocolAdapterId": "Default.Ict",
+      "ThirdPartyLibraryDirectory": "CH_V01.Plugins\\libs\\JiaLianYi"
+    },
+    "Popup": {
+      "Enabled": true,
+      "RequireConfirmation": false
+    },
+    "TestItems": {
+      "Items": [
+        {
+          "Order": 1,
+          "ItemName": "J1_1-SHORT",
+          "UpperLimit": "10",
+          "LowerLimit": "0",
+          "Unit": "ohm",
+          "PointA": "1",
+          "PointB": "1"
+        },
+        {
+          "Order": 2,
+          "ItemName": "R1",
+          "UpperLimit": "11.000",
+          "LowerLimit": "9.000",
+          "Unit": "Kohm",
+          "PointA": "1",
+          "PointB": "1"
+        },
+        {
+          "Order": 3,
+          "ItemName": "U1-ID",
+          "UpperLimit": "0x38",
+          "LowerLimit": "0x38",
+          "Unit": "HEX",
+          "PointA": "1",
+          "PointB": "1"
+        }
+      ]
+    },
+    "User": {
+      "AutoScan": true,
+      "ConsecutiveNgAlarmCount": 5,
+      "LoginJobNo": "admin",
+      "FixtureNo": "",
+      "Accounts": []
+    }
+  }
+}

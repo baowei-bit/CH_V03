@@ -1,0 +1,102 @@
+{
+  "Id": "KunshanJiaLianYi_MAODONG_Sealing",
+  "Name": "Kunshan JiaLianYi MAODONG Sealing",
+  "CustomerName": "Kunshan JiaLianYi",
+  "ProductName": "MAODONG",
+  "ProtocolAdapterId": "Default.Ict",
+  "Notes": "Migrated from WinForm_PY_Merge LouYin mode. MES test item prefix is Sealing, CSV export only.",
+  "Configuration": {
+    "Identity": {
+      "CustomerName": "Kunshan JiaLianYi",
+      "ProductName": "MAODONG",
+      "TestType": "Sealing",
+      "TestProgram": "Sealing",
+      "StationNo": "321",
+      "MachineNo": "10.1.227.132",
+      "BarcodeLength": "18",
+      "CodeSuffix": "",
+      "ScanRuleEnabled": true,
+      "ScanRulePrefix": "123"
+    },
+    "Communication": {
+      "ScannerTriggerEnabled": false,
+      "ScannerTriggerCommand": "start\\r\\n",
+      "ScannerStopCommand": "",
+      "TestItemRequestEnabled": true,
+      "TestItemRequestCommand": "Itemnum\\r\\n",
+      "Scanner": { "Name": "Scanner", "ConnectionType": 0, "PortName": "COM10", "BaudRate": 9600, "IpAddress": "127.0.0.1", "Port": 0, "TimeoutMilliseconds": 3000 },
+      "LowerMachine": { "Name": "LowerMachine", "ConnectionType": 0, "PortName": "COM9", "BaudRate": 115200, "IpAddress": "127.0.0.1", "Port": 0, "TimeoutMilliseconds": 3000 }
+    },
+    "Mes": {
+      "Enabled": true,
+      "OnlineMode": false,
+      "EnableYieldControlUploadToMes": false,
+      "YieldControlThreshold": 90,
+      "SelectedPlugin": "SwiftMom.Http",
+      "BaseUrl": "http://127.0.0.1:8080/swiftmom/api/",
+      "UserNo": "TEST",
+      "Password": "TEST",
+      "StationNo": "321",
+      "PackNo": "",
+      "Tooling": "",
+      "ProdNo": "123",
+      "AllowOfflineCache": true,
+      "PluginOptions": {
+        "BaseUrl": "http://127.0.0.1:8080/swiftmom/api/",
+        "TimeoutSeconds": "5",
+        "UseLegacyTestItemString": "true",
+        "TestItemPrefix": "Sealing",
+        "CreateLogAfterRoute": "true",
+        "Retest": "0",
+        "Weight": "0",
+        "FixtureNo": "FS00035535-0001"
+      }
+    },
+    "Output": { "CsvDirectory": "D:\\ee\\csv\\", "DclDirectory": "D:\\ee\\dcl\\", "LogDirectory": "D:\\ee\\log\\", "CsvName": "MAODONG" },
+    "Export": {
+      "EnabledPluginIds": [ "JiaLianYi.Export" ],
+      "PluginOptions": {
+        "JiaLianYi.Export": {
+          "CsvDirectory": "D:\\ee\\csv\\",
+          "FailCsvDirectory": "D:\\VisionResult\\FPC\\ProYield\\",
+          "DclDirectory": "D:\\ee\\dcl\\",
+          "CsvName": "MAODONG",
+          "Station": "Sealing",
+          "ModifyUser": "21041310",
+          "Mechine": "10.1.227.132",
+          "Tooling": "FS00035535-0001",
+          "JobNo": "123",
+          "SwVersion": "Sealing",
+          "DclEnabled": "false",
+          "LegacyDirectoryLayout": "true",
+          "UseLegacyDclFormat": "true",
+          "DclExtension": ".dcl",
+          "Retest": "0"
+        }
+      }
+    },
+    "Compatibility": {
+      "ProjectProfileId": "KunshanJiaLianYi_MAODONG_Sealing",
+      "ProtocolAdapterId": "Default.Ict",
+      "ThirdPartyLibraryDirectory": "",
+      "VisibleConfigurationFields": [
+        "Identity.CustomerName", "Identity.ProductName", "Identity.TestType", "Identity.TestProgram", "Identity.StationNo", "Identity.MachineNo", "Identity.BarcodeLength", "Identity.ScanRuleEnabled", "Identity.ScanRulePrefix",
+        "Communication.Scanner", "Communication.LowerMachine", "Communication.TestItemRequest",
+        "Mes.Enabled", "Mes.OnlineMode", "Mes.AllowOfflineCache", "Mes.SelectedPlugin", "Mes.BaseUrl", "Mes.UserNo", "Mes.Password", "Mes.ProdNo",
+        "MesPlugin.BaseUrl", "MesPlugin.TimeoutSeconds", "MesPlugin.UseLegacyTestItemString", "MesPlugin.TestItemPrefix", "MesPlugin.CreateLogAfterRoute", "MesPlugin.Weight", "MesPlugin.FixtureNo",
+        "Output.CsvDirectory", "Output.LogDirectory", "Output.CsvName", "Popup.Enabled",
+        "User.AutoScan", "User.NoScanMode", "User.ConsecutiveNgAlarmCount", "User.LoginJobNo", "User.FixtureNo",
+        "ExportPlugin.CsvDirectory", "ExportPlugin.FailCsvDirectory", "ExportPlugin.CsvName", "ExportPlugin.Station", "ExportPlugin.ModifyUser", "ExportPlugin.Mechine", "ExportPlugin.Tooling", "ExportPlugin.JobNo", "ExportPlugin.SwVersion", "ExportPlugin.LegacyDirectoryLayout"
+      ]
+    },
+    "Popup": { "Enabled": true, "RequireConfirmation": false },
+    "TestItems": {
+      "Items": [
+        { "Order": 1, "ItemName": "SEALING_PRESSURE", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "1" },
+        { "Order": 2, "ItemName": "SEALING_LEAK", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "2" },
+        { "Order": 3, "ItemName": "SEALING_RESULT", "UpperLimit": "OK", "LowerLimit": "OK", "Unit": "", "PointA": "1", "PointB": "3" }
+      ]
+    },
+    "User": { "AutoScan": false, "NoScanMode": false, "ConsecutiveNgAlarmCount": 4, "LoginJobNo": "21041310", "FixtureNo": "FS00035535-0001", "Accounts": [] }
+  }
+}

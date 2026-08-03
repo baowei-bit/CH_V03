@@ -1,0 +1,150 @@
+{
+  "Id": "SuzhouWeiXin_18165_ICT",
+  "Name": "苏州维信 18165 ICT",
+  "CustomerName": "苏州维信",
+  "ProductName": "18165",
+  "ProtocolAdapterId": "Default.Ict",
+  "Notes": "苏州维信 HTTP MES、五行 CSV 导出、当前配置为 KSJLY/默认 ICT 下位机协议。",
+  "Configuration": {
+    "Identity": {
+      "CustomerName": "苏州维信",
+      "ProductName": "18165",
+      "TestType": "ICT",
+      "TestProgram": "18165-ICT-V1.0",
+      "StationNo": "",
+      "MachineNo": "10.1.227.132",
+      "BarcodeLength": "",
+      "CodeSuffix": ""
+    },
+    "Communication": {
+      "ScannerTriggerEnabled": false,
+      "ScannerTriggerCommand": "start\\r\\n",
+      "ScannerStopCommand": "",
+      "Scanner": {
+        "Name": "扫码枪",
+        "ConnectionType": 1,
+        "PortName": "COM9",
+        "BaudRate": 9600,
+        "IpAddress": "169.254.153.1",
+        "Port": 5000,
+        "TimeoutMilliseconds": 3000
+      },
+      "LowerMachine": {
+        "Name": "下位机",
+        "ConnectionType": 0,
+        "PortName": "COM19",
+        "BaudRate": 115200,
+        "IpAddress": "127.0.0.1",
+        "Port": 0,
+        "TimeoutMilliseconds": 3000
+      }
+    },
+    "Mes": {
+      "Enabled": true,
+      "OnlineMode": false,
+      "EnableYieldControlUploadToMes": false,
+      "YieldControlThreshold": 90,
+      "SelectedPlugin": "SuzhouWeiXin.Http",
+      "BaseUrl": "",
+      "UserNo": "",
+      "Password": "",
+      "StationNo": "",
+      "PackNo": "",
+      "Tooling": "SZ250906FCT16554_01_M",
+      "ProdNo": "",
+      "AllowOfflineCache": true,
+      "PluginOptions": {
+        "PreCheckUrl": "http://ot-mfcsmtetwebapi.mflex.com.cn/api/ettestrecords/prevalidation",
+        "UploadUrl": "http://ot-mfcsmtetwebapi.mflex.com.cn/api/ettestrecords",
+        "TimeoutSeconds": "3",
+        "ConnectionTestBarcode": "TEST",
+        "TestType": "ICT",
+        "PrevTestType": "NULL",
+        "ProductName": "18165",
+        "WorkArea": "",
+        "Site": "",
+        "Program": "18165",
+        "Lot": "NULL",
+        "IpAddress": "10.1.227.132",
+        "ToolNumber": "SZ250906FCT16554_01_M",
+        "SlotName": "1",
+        "SubSlotName": "A",
+        "ResourceName": "SZ250906FCT16554_01_M",
+        "MaterialLotNames": "",
+        "SwVersion": "18165-ICT-V1.0"
+      }
+    },
+    "Output": {
+      "CsvDirectory": "D:\\VisionResult\\FPC\\ProData\\",
+      "DclDirectory": "D:\\VisionResult\\FPC\\ProOut\\",
+      "LogDirectory": "D:\\VisionResult\\FPC\\Log\\",
+      "CsvName": "18165"
+    },
+    "Export": {
+      "EnabledPluginIds": [
+        "SuzhouWeiXin.Export"
+      ],
+      "PluginOptions": {
+        "SuzhouWeiXin.Export": {
+          "CsvDirectory": "D:\\VisionResult\\FPC\\ProData\\",
+          "ProName": "18165",
+          "FixtureNo": "SZ250906FCT16554_01_M",
+          "IpAddress": "10.1.227.132",
+          "TestType": "ICT",
+          "TesterId": "SZ250906FCT16554_01_M",
+          "Config": "",
+          "Holder": "A",
+          "Slot": "1",
+          "SwVersion": "18165-ICT-V1.0"
+        }
+      }
+    },
+    "Compatibility": {
+      "ProjectProfileId": "SuzhouWeiXin_18165_ICT",
+      "ProtocolAdapterId": "Default.Ict",
+      "ThirdPartyLibraryDirectory": ""
+    },
+    "Popup": {
+      "Enabled": true,
+      "RequireConfirmation": false
+    },
+    "TestItems": {
+      "Items": [
+        {
+          "Order": 1,
+          "ItemName": "J1_1-SHORT",
+          "UpperLimit": "10",
+          "LowerLimit": "0",
+          "Unit": "ohm",
+          "PointA": "1",
+          "PointB": "1"
+        },
+        {
+          "Order": 2,
+          "ItemName": "R1",
+          "UpperLimit": "11.000",
+          "LowerLimit": "9.000",
+          "Unit": "Kohm",
+          "PointA": "1",
+          "PointB": "1"
+        },
+        {
+          "Order": 3,
+          "ItemName": "U1-ID",
+          "UpperLimit": "0x38",
+          "LowerLimit": "0x38",
+          "Unit": "HEX",
+          "PointA": "1",
+          "PointB": "1"
+        }
+      ]
+    },
+    "User": {
+      "AutoScan": true,
+      "ConsecutiveNgAlarmCount": 4,
+      "LoginJobNo": "admin",
+      "FixtureNo": "SZ250906FCT16554_01_M",
+      "Accounts": []
+    }
+  }
+}

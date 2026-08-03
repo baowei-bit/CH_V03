@@ -21,6 +21,8 @@ tmp-build/
 TestResults/
 coverage/
 output/
+verify-buildplugins/
+**/verify-app-build/
 
 # OS files
 Thumbs.db

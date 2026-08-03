@@ -1,0 +1,169 @@
+{
+  "Id": "Bomin_ICT",
+  "Name": "博敏 ICT",
+  "CustomerName": "博敏",
+  "ProductName": "",
+  "ProtocolAdapterId": "Bomin.Ict",
+  "Notes": "从 WinForm_PY_Ict 项目迁移的博敏客户方案。MES 采用 HTTP JSON 卡关/上传，导出包含汇总 CSV、单件 DCL、CsvMes。",
+  "Configuration": {
+    "Identity": {
+      "CustomerName": "博敏",
+      "ProductName": "",
+      "TestType": "FCT",
+      "TestProgram": "FCT-V1.0",
+      "StationNo": "",
+      "MachineNo": "10.1.226.219",
+      "BarcodeLength": "12",
+      "CodeSuffix": "",
+      "BarcodePositionValidationEnabled": true,
+      "BarcodeValidationPosition": 8,
+      "BarcodeValidationAllowedValues": "L,B",
+      "BarcodeLimitRuleEnabled": true,
+      "BarcodeLimitItemIndex": 12,
+      "BarcodeLimitUpperByValue": "L=630;B=630",
+      "BarcodeLimitLowerByValue": "L=550;B=480"
+    },
+    "Communication": {
+      "ScannerTriggerEnabled": true,
+      "ScannerTriggerCommand": "start\\r\\n",
+      "ScannerStopCommand": "",
+      "TestItemRequestEnabled": true,
+      "TestItemRequestCommand": "Itemnum\\r\\n",
+      "BarcodeSendDefaultOkCommand": false,
+      "BarcodeSuccessCommandByValue": "L=DMOK1\\r\\n;B=DMOK2\\r\\n",
+      "Scanner": {
+        "Name": "扫码枪",
+        "ConnectionType": 0,
+        "PortName": "COM9",
+        "BaudRate": 9600,
+        "IpAddress": "127.0.0.1",
+        "Port": 0,
+        "TimeoutMilliseconds": 3000
+      },
+      "LowerMachine": {
+        "Name": "下位机",
+        "ConnectionType": 0,
+        "PortName": "COM11",
+        "BaudRate": 115200,
+        "IpAddress": "127.0.0.1",
+        "Port": 0,
+        "TimeoutMilliseconds": 3000
+      }
+    },
+    "Mes": {
+      "Enabled": false,
+      "OnlineMode": false,
+      "EnableYieldControlUploadToMes": false,
+      "YieldControlThreshold": 90,
+      "SelectedPlugin": "Bomin.Http",
+      "BaseUrl": "",
+      "UserNo": "",
+      "Password": "",
+      "StationNo": "",
+      "PackNo": "",
+      "Tooling": "FS00035535-0001",
+      "ProdNo": "",
+      "AllowOfflineCache": true,
+      "PluginOptions": {
+        "LoginUrl": "http://ot-mfcsmtetwebapi.mflex.com.cn/api/etresources/etauthentication",
+        "PreCheckUrl": "http://ot-mfcsmtetwebapi.mflex.com.cn/api/ettestrecords/prevalidation",
+        "UploadUrl": "http://ot-mfcsmtetwebapi.mflex.com.cn/api/ettestrecords",
+        "TimeoutSeconds": "3",
+        "Role": "0",
+        "TestType": "FCT",
+        "PrevTestType": "NULL",
+        "ProductName": "",
+        "WorkArea": "",
+        "Site": "",
+        "Program": "",
+        "Lot": "NULL",
+        "IpAddress": "10.1.226.219",
+        "ToolNumber": "FS00035535-0001",
+        "SlotName": "1",
+        "SubSlotName": "A",
+        "ResourceName": "FS00035535-0001",
+        "MaterialLotNames": "",
+        "SwVersion": "FCT-V1.0"
+      }
+    },
+    "Output": {
+      "CsvDirectory": "D:\\VisionResult\\FPC\\ProData\\",
+      "DclDirectory": "D:\\VisionResult\\FPC\\ProOut\\",
+      "LogDirectory": "D:\\VisionResult\\FPC\\Log\\",
+      "CsvName": "F3409-0021-0021CS",
+      "SinglePieceCsvEnabled": false,
+      "SinglePieceCsvDirectory": "D:\\VisionResult\\FPC\\ProYield\\",
+      "SinglePieceCsvFileName": "{Result}_{SN}_{Time}.csv"
+    },
+    "Export": {
+      "EnabledPluginIds": [
+        "Bomin.Export"
+      ],
+      "PluginOptions": {
+        "Bomin.Export": {
+          "CsvPassDirectory": "D:\\VisionResult\\FPC\\ProData\\",
+          "CsvFailDirectory": "D:\\VisionResult\\FPC\\ProYield\\",
+          "DclDirectory": "D:\\VisionResult\\FPC\\ProOut\\",
+          "CsvMesDirectory": "D:\\VisionResult\\FPC\\ProOut\\",
+          "CsvName": "F3409-0021-0021CS",
+          "UseBarcodeSubfolders": "true",
+          "CsvLeafDirectory": "CSV",
+          "TesterId": "FS00035535-0001",
+          "Config": "111",
+          "Holder": "A",
+          "Slot": "1",
+          "TestType": "FCT",
+          "SwVersion": "FCT-V1.0"
+        }
+      }
+    },
+    "Compatibility": {
+      "ProjectProfileId": "Bomin_ICT",
+      "ProtocolAdapterId": "Bomin.Ict",
+      "ThirdPartyLibraryDirectory": ""
+    },
+    "Popup": {
+      "Enabled": true,
+      "RequireConfirmation": false
+    },
+    "TestItems": {
+      "Items": [
+        {
+          "Order": 1,
+          "ItemName": "J1_1-SHORT",
+          "UpperLimit": "10",
+          "LowerLimit": "0",
+          "Unit": "ohm",
+          "PointA": "1",
+          "PointB": "1"
+        },
+        {
+          "Order": 2,
+          "ItemName": "R1",
+          "UpperLimit": "11.000",
+          "LowerLimit": "9.000",
+          "Unit": "Kohm",
+          "PointA": "1",
+          "PointB": "1"
+        },
+        {
+          "Order": 3,
+          "ItemName": "U1-ID",
+          "UpperLimit": "0x38",
+          "LowerLimit": "0x38",
+          "Unit": "HEX",
+          "PointA": "1",
+          "PointB": "1"
+        }
+      ]
+    },
+    "User": {
+      "AutoScan": true,
+      "NoScanMode": false,
+      "ConsecutiveNgAlarmCount": 5,
+      "LoginJobNo": "",
+      "FixtureNo": "FS00035535-0001",
+      "Accounts": []
+    }
+  }
+}

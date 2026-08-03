@@ -1,4 +1,4 @@
-# Project Compatibility Guide
+﻿# Project Compatibility Guide
 
 This WPF shell should stay stable. Customer-specific behavior should be added as configuration, profiles, or adapters.
 
@@ -8,7 +8,7 @@ This WPF shell should stay stable. Customer-specific behavior should be added as
 - Export plugin: CSV, DCL, TXT, and customer-specific report formats.
 - Protocol adapter: lower-machine commands and payload parsing.
 - Project profile: default customer configuration for one product or line.
-- Third-party libraries: vendor DLLs placed under `BW_V01.Plugins/libs`, not under old WinForms `bin` paths.
+- Third-party libraries: vendor DLLs placed under `CH_V01.Plugins/libs`, not under old WinForms `bin` paths.
 
 ## New Project Checklist
 
@@ -28,7 +28,7 @@ For each legacy WinForms project, capture these items before coding:
 
 ## Profile Convention
 
-Put project profiles under `BW_V01.Plugins/profiles/*.json`.
+Put project profiles under `CH_V01.Plugins/profiles/*.json`.
 
 Use `docs/compatibility/PROJECT_PROFILE_TEMPLATE_CN.md` as the default field reference when creating a new customer profile.
 

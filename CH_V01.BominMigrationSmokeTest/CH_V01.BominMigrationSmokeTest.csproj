@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CH_V01.Core\CH_V01.Core.csproj" />
+    <ProjectReference Include="..\CH_V01.Plugins\Export\CH_V01.Export.Bomin\CH_V01.Export.Bomin.csproj" />
+    <ProjectReference Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.Bomin\CH_V01.Mes.Bomin.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,142 @@
+{
+  "Id": "KunshanJiaLianYi_MAODONG_ICT",
+  "Name": "Kunshan JiaLianYi MAODONG ICT",
+  "CustomerName": "Kunshan JiaLianYi",
+  "ProductName": "MAODONG",
+  "ProtocolAdapterId": "KunshanJiaLianYi.Ict",
+  "Notes": "Migrated from WinForm_PY_Merge. ICT uses SwiftMOM, legacy test item string, JiaLianYi CSV/DCL export, and barcode char 8 L/B compatibility.",
+  "Configuration": {
+    "Identity": {
+      "CustomerName": "Kunshan JiaLianYi",
+      "ProductName": "MAODONG",
+      "TestType": "ICT",
+      "TestProgram": "ICT",
+      "StationNo": "321",
+      "MachineNo": "10.1.227.132",
+      "BarcodeLength": "18",
+      "CodeSuffix": "",
+      "ScanRuleEnabled": true,
+      "ScanRulePrefix": "123"
+    },
+    "Communication": {
+      "ScannerTriggerEnabled": false,
+      "ScannerTriggerCommand": "start\\r\\n",
+      "ScannerStopCommand": "",
+      "TestItemRequestEnabled": true,
+      "TestItemRequestCommand": "Itemnum\\r\\n",
+      "Scanner": {
+        "Name": "Scanner",
+        "ConnectionType": 0,
+        "PortName": "COM10",
+        "BaudRate": 9600,
+        "IpAddress": "127.0.0.1",
+        "Port": 0,
+        "TimeoutMilliseconds": 3000
+      },
+      "LowerMachine": {
+        "Name": "LowerMachine",
+        "ConnectionType": 0,
+        "PortName": "COM9",
+        "BaudRate": 115200,
+        "IpAddress": "127.0.0.1",
+        "Port": 0,
+        "TimeoutMilliseconds": 3000
+      }
+    },
+    "Mes": {
+      "Enabled": true,
+      "OnlineMode": false,
+      "EnableYieldControlUploadToMes": false,
+      "YieldControlThreshold": 90,
+      "SelectedPlugin": "SwiftMom.Http",
+      "BaseUrl": "http://127.0.0.1:8080/swiftmom/api/",
+      "UserNo": "TEST",
+      "Password": "TEST",
+      "StationNo": "321",
+      "PackNo": "",
+      "Tooling": "",
+      "ProdNo": "123",
+      "AllowOfflineCache": true,
+      "PluginOptions": {
+        "BaseUrl": "http://127.0.0.1:8080/swiftmom/api/",
+        "TimeoutSeconds": "5",
+        "UseLegacyTestItemString": "true",
+        "TestItemPrefix": "ICT",
+        "CreateLogAfterRoute": "true",
+        "Retest": "0",
+        "Weight": "0",
+        "FixtureNo": "FS00035535-0001"
+      }
+    },
+    "Output": {
+      "CsvDirectory": "D:\\ee\\csv\\",
+      "DclDirectory": "D:\\ee\\dcl\\",
+      "LogDirectory": "D:\\ee\\log\\",
+      "CsvName": "MAODONG"
+    },
+    "Export": {
+      "EnabledPluginIds": [ "JiaLianYi.Export" ],
+      "PluginOptions": {
+        "JiaLianYi.Export": {
+          "CsvDirectory": "D:\\ee\\csv\\",
+          "FailCsvDirectory": "D:\\VisionResult\\FPC\\ProYield\\",
+          "DclDirectory": "D:\\ee\\dcl\\",
+          "CsvName": "MAODONG",
+          "Station": "ICT",
+          "ModifyUser": "21041310",
+          "Mechine": "10.1.227.132",
+          "Tooling": "FS00035535-0001",
+          "JobNo": "123",
+          "SwVersion": "ICT",
+          "DclEnabled": "true",
+          "LegacyDirectoryLayout": "true",
+          "UseLegacyDclFormat": "true",
+          "DclExtension": ".dcl",
+          "Retest": "0"
+        }
+      }
+    },
+    "Compatibility": {
+      "ProjectProfileId": "KunshanJiaLianYi_MAODONG_ICT",
+      "ProtocolAdapterId": "KunshanJiaLianYi.Ict",
+      "ThirdPartyLibraryDirectory": "",
+      "VisibleConfigurationFields": [
+        "Identity.CustomerName", "Identity.ProductName", "Identity.TestType", "Identity.TestProgram", "Identity.StationNo", "Identity.MachineNo", "Identity.BarcodeLength", "Identity.ScanRuleEnabled", "Identity.ScanRulePrefix",
+        "Communication.Scanner", "Communication.LowerMachine", "Communication.TestItemRequest",
+        "Mes.Enabled", "Mes.OnlineMode", "Mes.AllowOfflineCache", "Mes.SelectedPlugin", "Mes.BaseUrl", "Mes.UserNo", "Mes.Password", "Mes.ProdNo",
+        "MesPlugin.BaseUrl", "MesPlugin.TimeoutSeconds", "MesPlugin.UseLegacyTestItemString", "MesPlugin.TestItemPrefix", "MesPlugin.CreateLogAfterRoute", "MesPlugin.Weight", "MesPlugin.FixtureNo",
+        "Output.CsvDirectory", "Output.DclDirectory", "Output.LogDirectory", "Output.CsvName", "Popup.Enabled",
+        "User.AutoScan", "User.NoScanMode", "User.ConsecutiveNgAlarmCount", "User.LoginJobNo", "User.FixtureNo",
+        "ExportPlugin.CsvDirectory", "ExportPlugin.FailCsvDirectory", "ExportPlugin.DclDirectory", "ExportPlugin.CsvName", "ExportPlugin.Station", "ExportPlugin.ModifyUser", "ExportPlugin.Mechine", "ExportPlugin.Tooling", "ExportPlugin.JobNo", "ExportPlugin.SwVersion", "ExportPlugin.DclEnabled", "ExportPlugin.LegacyDirectoryLayout", "ExportPlugin.UseLegacyDclFormat", "ExportPlugin.DclExtension"
+      ]
+    },
+    "Popup": {
+      "Enabled": true,
+      "RequireConfirmation": false
+    },
+    "TestItems": {
+      "Items": [
+        { "Order": 1, "ItemName": "ICT_ITEM_01", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "1" },
+        { "Order": 2, "ItemName": "ICT_ITEM_02", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "2" },
+        { "Order": 3, "ItemName": "ICT_ITEM_03", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "3" },
+        { "Order": 4, "ItemName": "ICT_ITEM_04", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "4" },
+        { "Order": 5, "ItemName": "ICT_ITEM_05", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "5" },
+        { "Order": 6, "ItemName": "ICT_ITEM_06", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "6" },
+        { "Order": 7, "ItemName": "ICT_ITEM_07", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "7" },
+        { "Order": 8, "ItemName": "ICT_ITEM_08", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "8" },
+        { "Order": 9, "ItemName": "ICT_ITEM_09", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "9" },
+        { "Order": 10, "ItemName": "ICT_ITEM_10", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "10" },
+        { "Order": 11, "ItemName": "ICT_ITEM_11", "UpperLimit": "10", "LowerLimit": "0", "Unit": "", "PointA": "1", "PointB": "11" },
+        { "Order": 12, "ItemName": "ICT_LB_DYNAMIC_LIMIT", "UpperLimit": "630", "LowerLimit": "480", "Unit": "", "PointA": "1", "PointB": "12" }
+      ]
+    },
+    "User": {
+      "AutoScan": false,
+      "NoScanMode": false,
+      "ConsecutiveNgAlarmCount": 4,
+      "LoginJobNo": "21041310",
+      "FixtureNo": "FS00035535-0001",
+      "Accounts": []
+    }
+  }
+}
