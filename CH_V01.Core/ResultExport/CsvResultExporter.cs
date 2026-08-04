@@ -20,7 +20,7 @@ public sealed class CsvResultExporter : IResultExporter, IResultExportPlugin
             var directory = CsvOutputDirectoryResolver.Resolve(context.Configuration, context.Snapshot.IsPass == true);
             Directory.CreateDirectory(directory);
 
-            var fileName = $"{context.Configuration.Output.CsvName}_{DateTime.Now:yyyyMMdd}.csv";
+            var fileName = ResultExportFileName.ApplyTestPieceSuffix(context, $"{context.Configuration.Output.CsvName}_{DateTime.Now:yyyyMMdd}.csv");
             var filePath = Path.Combine(directory, fileName);
             var fileExists = File.Exists(filePath);
 

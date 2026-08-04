@@ -75,7 +75,8 @@ public sealed class CustomCsvResultExporter : IResultExporter, IResultExportPlug
         var invalid = Path.GetInvalidFileNameChars();
         name = new string(name.Select(character => invalid.Contains(character) ? '_' : character).ToArray()).Trim(' ', '.');
         name = string.IsNullOrWhiteSpace(name) ? "\u6d4b\u8bd5\u7ed3\u679c" : name;
-        return name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) ? name : $"{name}.csv";
+        var fileName = name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) ? name : $"{name}.csv";
+        return ResultExportFileName.ApplyTestPieceSuffix(context, fileName);
     }
 
     private static string BuildContent(ResultExportContext context)

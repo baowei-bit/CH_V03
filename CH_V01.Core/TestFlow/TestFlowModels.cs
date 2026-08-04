@@ -28,6 +28,8 @@ public sealed class TestFlowOptions
 
     public bool NoScanMode { get; set; }
 
+    public bool RequireNumericTestValues { get; set; }
+
     public static TestFlowOptions FromConfiguration(AppConfiguration configuration)
     {
         return new TestFlowOptions
@@ -38,7 +40,8 @@ public sealed class TestFlowOptions
             ScanRulePrefix = configuration.Identity.ScanRulePrefix,
             AutoScan = configuration.User.AutoScan,
             ManualScanMode = configuration.User.ManualScanMode,
-            NoScanMode = configuration.User.NoScanMode
+            NoScanMode = configuration.User.NoScanMode,
+            RequireNumericTestValues = configuration.User.Jly.RequireNumericTestValues
         };
     }
 }

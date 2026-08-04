@@ -62,7 +62,7 @@ public sealed class SuzhouWeiXinExportPlugin : IResultExportPlugin
         var fixture = context.GetOption("FixtureNo", context.Configuration.User.FixtureNo);
         var ipAddress = context.GetOption("IpAddress", context.Configuration.Identity.MachineNo);
         var testType = context.GetOption("TestType", context.Configuration.Identity.TestType);
-        return $"{Safe(proName)}_{Safe(fixture)}_{Safe(ipAddress)}_{Safe(testType)}_WTB_{now:yyyyMMdd}_{GetShiftName(now)}.csv";
+        return ResultExportFileName.ApplyTestPieceSuffix(context, $"{Safe(proName)}_{Safe(fixture)}_{Safe(ipAddress)}_{Safe(testType)}_WTB_{now:yyyyMMdd}_{GetShiftName(now)}.csv");
     }
 
     private static string BuildHeader(ResultExportContext context)
@@ -166,4 +166,3 @@ public sealed class SuzhouWeiXinExportPlugin : IResultExportPlugin
         return value;
     }
 }
-

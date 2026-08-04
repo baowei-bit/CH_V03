@@ -67,7 +67,7 @@ public sealed class SinglePieceCsvResultExporter : IResultExporter
             name += ".csv";
         }
 
-        return SanitizeFileName(name);
+        return ResultExportFileName.ApplyTestPieceSuffix(context, SanitizeFileName(name));
     }
 
     private static string BuildHeader(ResultExportContext context)

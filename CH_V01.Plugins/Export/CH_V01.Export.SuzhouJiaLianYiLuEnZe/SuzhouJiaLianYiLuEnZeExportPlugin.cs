@@ -46,7 +46,7 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
         Directory.CreateDirectory(directory);
 
         var csvName = context.GetOption("CsvName", context.Configuration.Output.CsvName);
-        var filePath = Path.Combine(directory, $"{csvName}_{DateTime.Now:yyyyMMdd}.csv");
+        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, $"{csvName}_{DateTime.Now:yyyyMMdd}.csv"));
         var exists = File.Exists(filePath);
 
         await using var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
@@ -73,7 +73,7 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
 
         var directory = context.GetOption("DclDirectory", context.Configuration.Output.DclDirectory);
         Directory.CreateDirectory(directory);
-        var filePath = Path.Combine(directory, MakeValidFileName(context.Snapshot.Barcode) + ".dcl");
+        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, MakeValidFileName(context.Snapshot.Barcode) + ".dcl"));
         await File.WriteAllTextAsync(filePath, BuildDcl(context), Encoding.Default, cancellationToken);
         return filePath;
     }

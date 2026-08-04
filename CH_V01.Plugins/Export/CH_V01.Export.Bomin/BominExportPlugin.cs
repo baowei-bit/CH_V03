@@ -50,7 +50,7 @@ public sealed class BominExportPlugin : IResultExportPlugin
         Directory.CreateDirectory(directory);
 
         var csvName = context.GetOption("CsvName", context.Configuration.Output.CsvName);
-        var filePath = Path.Combine(directory, $"{Safe(csvName)}_{DateTime.Now:yyyyMMdd}.csv");
+        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, $"{Safe(csvName)}_{DateTime.Now:yyyyMMdd}.csv"));
         var exists = File.Exists(filePath);
 
         await using var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
@@ -78,7 +78,7 @@ public sealed class BominExportPlugin : IResultExportPlugin
         var directory = context.GetOption("DclDirectory", context.Configuration.Output.DclDirectory);
         Directory.CreateDirectory(directory);
 
-        var filePath = Path.Combine(directory, Safe(context.Snapshot.Barcode) + ".dcl");
+        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, Safe(context.Snapshot.Barcode) + ".dcl"));
         await File.WriteAllTextAsync(filePath, BuildDcl(context), Encoding.Default, cancellationToken);
         return filePath;
     }
@@ -88,7 +88,7 @@ public sealed class BominExportPlugin : IResultExportPlugin
         var directory = context.GetOption("CsvMesDirectory", context.Configuration.Output.DclDirectory);
         Directory.CreateDirectory(directory);
 
-        var filePath = Path.Combine(directory, $"{DateTime.Now:yyyyMMdd}.csv");
+        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, $"{DateTime.Now:yyyyMMdd}.csv"));
         var exists = File.Exists(filePath);
         await using var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
         await using var writer = new StreamWriter(stream, Encoding.UTF8);

@@ -4,7 +4,7 @@
         xmlns:converters="clr-namespace:CH_V01.App.Converters"
         Title="用户配置"
         Width="860"
-        Height="620"
+        Height="680"
         WindowStartupLocation="CenterOwner"
         Background="#EAF7FF">
     <Window.Resources>
@@ -37,7 +37,9 @@
             </Grid.RowDefinitions>
 
             <Border Background="White" BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="8" Padding="18">
-                <GroupBox Header="用户操作设置" Padding="16" FontSize="15">
+                <TabControl>
+                    <TabItem Header="用户操作设置">
+                <GroupBox Padding="16" FontSize="15">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -79,6 +81,29 @@
                         </StackPanel>
                     </Grid>
                 </GroupBox>
+                    </TabItem>
+                    <TabItem Header="特殊配置">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="16">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <TextBlock Text="片型模式：" VerticalAlignment="Center" />
+                                    <RadioButton Content="标准片模式" GroupName="JlyPieceMode" IsChecked="{Binding IsStandardPieceMode}" />
+                                    <RadioButton Content="测试片模式" GroupName="JlyPieceMode" Margin="18,0,0,0" IsChecked="{Binding IsTestPieceMode}" Checked="TestPieceMode_Checked" />
+                                </StackPanel>
+                                <TextBlock Text="标准片模式的 PASS 和 FAIL 均上传 MES；测试片模式按下列良率规则控制上传。" Foreground="#52606D" TextWrapping="Wrap" Margin="0,0,0,12" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <TextBlock Text="测试片 MES 上传良率阈值(%)：" VerticalAlignment="Center" />
+                                    <TextBox Width="110" Text="{Binding Configuration.Jly.YieldUploadThreshold, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="（良率小于或等于该值时不上传）" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#52606D" />
+                                </StackPanel>
+                                <CheckBox Content="TXT 文档以 SN_时间命名（例如 001_260803171205）" IsChecked="{Binding Configuration.Jly.UseSnTimeForTxtFileName}" Margin="0,0,0,10" />
+                                <CheckBox Content="测试结果 FAIL 时弹出消息提醒框" IsChecked="{Binding Configuration.Jly.ShowFailResultPopup}" Margin="0,0,0,10" />
+                                <CheckBox Content="测试值判定：测试值必须为数字类型" IsChecked="{Binding Configuration.Jly.RequireNumericTestValues}" Margin="0,0,0,10" />
+                                <CheckBox Content="记录二次良率：首次 FAIL 暂不上传 MES，以同一 SN 的第二次结果为准上传" IsChecked="{Binding Configuration.Jly.RecordSecondTestYield}" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
             </Border>
 
             <Border Grid.Row="2" Background="White" BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="8" Padding="18"

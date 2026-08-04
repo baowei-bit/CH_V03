@@ -24,7 +24,7 @@ public sealed class DclResultExporter : IResultExporter, IResultExportPlugin
 
             var directory = context.Configuration.Output.DclDirectory;
             Directory.CreateDirectory(directory);
-            var filePath = Path.Combine(directory, $"{context.Snapshot.Barcode}.dcl");
+            var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, $"{context.Snapshot.Barcode}.dcl"));
             await File.WriteAllTextAsync(filePath, BuildDcl(context), Encoding.Default, cancellationToken);
             return ResultExportResult.Success(Name, "DCL 生成成功", filePath);
         }

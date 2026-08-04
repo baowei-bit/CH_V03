@@ -101,6 +101,11 @@
                                       IsChecked="{Binding Configuration.Communication.AutoConnectLowerMachineOnStartup}"
                                       Margin="0,8,14,0"
                                       VerticalAlignment="Center" />
+                            <StackPanel Margin="0,0,14,0">
+                                <TextBlock Style="{StaticResource Label}" Text="下位机报文超时（秒）" />
+                                <TextBox Text="{Binding Configuration.Communication.LowerMachinePayloadTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Foreground="#94A3B8" FontSize="11" Text="最小 1 秒；未收到 end 或 reset 时作废本次数据" Margin="0,4,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
                             <CheckBox Content="显示消息弹窗" IsChecked="{Binding Configuration.Popup.Enabled}" Margin="0,8,14,0" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Popup.Enabled}" />
                             <CheckBox Content="弹窗需要确认" IsChecked="{Binding Configuration.Popup.RequireConfirmation}" Margin="0,8,14,0" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Popup.RequireConfirmation}" />
                             <CheckBox Content="消息提醒居中并放大"

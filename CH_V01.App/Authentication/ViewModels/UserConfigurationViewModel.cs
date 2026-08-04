@@ -21,6 +21,34 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
 
     public bool CanManageAccounts { get; }
 
+    public bool IsStandardPieceMode
+    {
+        get => !Configuration.Jly.TestPieceMode;
+        set
+        {
+            if (value)
+            {
+                Configuration.Jly.TestPieceMode = false;
+                OnPropertyChanged(nameof(IsStandardPieceMode));
+                OnPropertyChanged(nameof(IsTestPieceMode));
+            }
+        }
+    }
+
+    public bool IsTestPieceMode
+    {
+        get => Configuration.Jly.TestPieceMode;
+        set
+        {
+            if (value)
+            {
+                Configuration.Jly.TestPieceMode = true;
+                OnPropertyChanged(nameof(IsStandardPieceMode));
+                OnPropertyChanged(nameof(IsTestPieceMode));
+            }
+        }
+    }
+
     public bool IsAutoScanMode
     {
         get => Configuration.AutoScan;
@@ -88,6 +116,15 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
         if (!Configuration.ManualScanMode)
         {
             Configuration.ScanAheadEnabled = false;
+        }
+
+        if (!double.IsFinite(Configuration.Jly.YieldUploadThreshold))
+        {
+            Configuration.Jly.YieldUploadThreshold = 90;
+        }
+        else
+        {
+            Configuration.Jly.YieldUploadThreshold = Math.Clamp(Configuration.Jly.YieldUploadThreshold, 0, 100);
         }
 
         Close(true);

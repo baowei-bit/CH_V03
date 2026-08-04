@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Input;
 using CH_V01.App.Commands;
 using CH_V01.App.Services;
@@ -25,6 +26,12 @@ public sealed class MainWindowViewModel : ViewModelBase
     private const int ScannerReceiveDebounceMilliseconds = 120;
     private static readonly System.Text.RegularExpressions.Regex LowerMachineFrameStartPattern = new(
         @"(?<![A-Za-z0-9])(?:Item1|Test1)\s*,",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex LowerMachineItemFrameStartPattern = new(
+        @"(?<![A-Za-z0-9])Item1\s*,",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex LowerMachineResetSignalPattern = new(
+        @"(?<![A-Za-z0-9])reset(?![A-Za-z0-9])",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private readonly ConfigurationStore _configurationStore;
@@ -61,10 +68,13 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _scannerReceiveBuffer = string.Empty;
     private string _lastHandledScannerBarcode = string.Empty;
     private string _lowerMachineReceiveBuffer = string.Empty;
+    private bool _waitingForItemHeader;
     private ScanAheadStatus _scanAheadStatus;
     private CancellationTokenSource? _scannerReceiveDebounceCts;
+    private CancellationTokenSource? _lowerMachinePayloadTimeoutCts;
     private readonly Queue<PopupNotification> _popupQueue = new();
     private PopupNotification? _activePopup;
+    private TestFlowSnapshot? _pendingJlyRetestFailure;
 
     public MainWindowViewModel(
         ConfigurationStore configurationStore,
@@ -398,6 +408,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             editable.Output = output;
         }
 
+        editable.Communication.LowerMachinePayloadTimeoutSeconds = Math.Max(
+            1,
+            editable.Communication.LowerMachinePayloadTimeoutSeconds);
         _configuration = editable;
         Save();
         RefreshDerivedState();
@@ -708,6 +721,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         try
         {
             ResetLowerMachineReceiveBuffer();
+            _waitingForItemHeader = true;
             _lowerMachineConnection = _deviceConnectionFactory.Create(_configuration.Communication.LowerMachine);
             _lowerMachineConnection.DataReceived += LowerMachineConnection_DataReceived;
             await _lowerMachineConnection.OpenAsync();
@@ -998,6 +1012,15 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (LowerMachineResetSignalPattern.IsMatch(payload))
+        {
+            DiscardCurrentTestAfterLowerMachineReset();
+            if (string.Equals(payload.Trim(), "reset", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
         foreach (var completePayload in CollectLowerMachinePayloads(payload))
         {
             ProcessLowerMachinePayload(completePayload);
@@ -1022,18 +1045,24 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
 
         _lowerMachineReceiveBuffer += payload;
+        StartLowerMachinePayloadTimeout();
         while (true)
         {
-            var frameStart = LowerMachineFrameStartPattern.Match(_lowerMachineReceiveBuffer);
+            var frameStart = (_waitingForItemHeader
+                    ? LowerMachineItemFrameStartPattern
+                    : LowerMachineFrameStartPattern)
+                .Match(_lowerMachineReceiveBuffer);
             if (!frameStart.Success)
             {
-                RetainPossibleFramePrefix();
+                RetainPossibleFramePrefix(_waitingForItemHeader);
                 yield break;
             }
 
             if (frameStart.Index > 0)
             {
-                AddLog("已忽略下位机开机自检/非协议报文");
+                AddLog(_waitingForItemHeader
+                    ? "复位后已忽略未完成测试数据，等待新的 Item1 表头"
+                    : "已忽略下位机开机自检/非协议报文");
                 _lowerMachineReceiveBuffer = _lowerMachineReceiveBuffer[frameStart.Index..];
             }
 
@@ -1043,7 +1072,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 if (_lowerMachineReceiveBuffer.Length > 8192)
                 {
                     AddLog("下位机接收缓存超过 8192 字符，已清空");
-                    _lowerMachineReceiveBuffer = string.Empty;
+                    ResetLowerMachineReceiveBuffer();
                 }
 
                 yield break;
@@ -1051,8 +1080,20 @@ public sealed class MainWindowViewModel : ViewModelBase
 
             var completePayload = _lowerMachineReceiveBuffer[..(endIndex + 3)];
             _lowerMachineReceiveBuffer = _lowerMachineReceiveBuffer[(endIndex + 3)..];
+            CancelLowerMachinePayloadTimeout();
+            if (!string.IsNullOrEmpty(_lowerMachineReceiveBuffer))
+            {
+                StartLowerMachinePayloadTimeout();
+            }
+
             if (!string.IsNullOrWhiteSpace(completePayload))
             {
+                if (_waitingForItemHeader && _protocolAdapter.IsItemPayload(completePayload))
+                {
+                    _waitingForItemHeader = false;
+                    AddLog("已收到新的 Item1 表头，恢复接收本次测试数据");
+                }
+
                 yield return completePayload;
             }
         }
@@ -1229,6 +1270,12 @@ public sealed class MainWindowViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(barcode))
         {
             AddLog("条码为空，无法发送 DMOK");
+            await SendLowerMachineNgAsync();
+            return;
+        }
+
+        if (!await EnsureResultFilesAvailableAsync(barcode))
+        {
             await SendLowerMachineNgAsync();
             return;
         }
@@ -1512,11 +1559,81 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
 
         _lowerMachineReceiveBuffer = string.Empty;
+        CancelLowerMachinePayloadTimeout();
     }
 
-    private void RetainPossibleFramePrefix()
+    private void DiscardCurrentTestAfterLowerMachineReset()
     {
-        var possiblePrefixes = new[] { "Item1,", "Item1", "Item", "Ite", "It", "I", "Test1,", "Test1", "Test", "Tes", "Te", "T" };
+        ResetLowerMachineReceiveBuffer();
+        _waitingForItemHeader = true;
+        _lastHandledScannerBarcode = string.Empty;
+        _scanAheadStatus = ScanAheadStatus.None;
+        _pendingJlyRetestFailure = null;
+
+        var snapshot = _testFlowService.Initialize(TestFlowOptions.FromConfiguration(_configuration));
+        ApplySnapshot(snapshot, countYield: false);
+        AddLog("收到下位机 reset：当前测试数据已作废，不保存、不导出、不上传 MES；等待新的 Item1 表头");
+    }
+
+    private void StartLowerMachinePayloadTimeout()
+    {
+        if (string.IsNullOrEmpty(_lowerMachineReceiveBuffer))
+        {
+            return;
+        }
+
+        if (_lowerMachinePayloadTimeoutCts is not null)
+        {
+            return;
+        }
+
+        var timeoutCts = new CancellationTokenSource();
+        _lowerMachinePayloadTimeoutCts = timeoutCts;
+        _ = DiscardLowerMachinePayloadAfterTimeoutAsync(timeoutCts);
+    }
+
+    private async Task DiscardLowerMachinePayloadAfterTimeoutAsync(CancellationTokenSource timeoutCts)
+    {
+        try
+        {
+            var timeoutSeconds = Math.Max(1, _configuration.Communication.LowerMachinePayloadTimeoutSeconds);
+            await Task.Delay(TimeSpan.FromSeconds(timeoutSeconds), timeoutCts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        PostToUi(() =>
+        {
+            if (!ReferenceEquals(_lowerMachinePayloadTimeoutCts, timeoutCts)
+                || string.IsNullOrEmpty(_lowerMachineReceiveBuffer))
+            {
+                return;
+            }
+
+            ResetLowerMachineReceiveBuffer();
+            _waitingForItemHeader = true;
+            _lastHandledScannerBarcode = string.Empty;
+            _scanAheadStatus = ScanAheadStatus.None;
+            _pendingJlyRetestFailure = null;
+            ApplySnapshot(_testFlowService.Initialize(TestFlowOptions.FromConfiguration(_configuration)), countYield: false);
+            AddLog($"下位机报文超过 {_configuration.Communication.LowerMachinePayloadTimeoutSeconds} 秒未收到 end 或 reset：当前测试数据已作废，不保存、不导出、不上传 MES；等待新的 Item1 表头");
+        });
+    }
+
+    private void CancelLowerMachinePayloadTimeout()
+    {
+        _lowerMachinePayloadTimeoutCts?.Cancel();
+        _lowerMachinePayloadTimeoutCts?.Dispose();
+        _lowerMachinePayloadTimeoutCts = null;
+    }
+
+    private void RetainPossibleFramePrefix(bool itemHeaderOnly = false)
+    {
+        var possiblePrefixes = itemHeaderOnly
+            ? new[] { "Item1,", "Item1", "Item", "Ite", "It", "I" }
+            : new[] { "Item1,", "Item1", "Item", "Ite", "It", "I", "Test1,", "Test1", "Test", "Tes", "Te", "T" };
         var retained = possiblePrefixes
             .Where(prefix => _lowerMachineReceiveBuffer.EndsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(prefix => prefix.Length)
@@ -1529,7 +1646,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 AddLog("已忽略下位机开机自检/非协议报文");
             }
 
-            _lowerMachineReceiveBuffer = string.Empty;
+            ResetLowerMachineReceiveBuffer();
             return;
         }
 
@@ -1551,6 +1668,12 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         var barcode = "NOSCAN" + DateTime.Now.ToString("yyyyMMddHHmmss");
         AddLog($"不扫码模式：{barcode}");
+        if (!await EnsureResultFilesAvailableAsync(barcode))
+        {
+            await SendLowerMachineNgAsync();
+            return;
+        }
+
         var snapshot = _testFlowService.AcceptBarcode(barcode, new TestFlowOptions
         {
             AutoScan = false,
@@ -1575,10 +1698,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         if (snapshot.IsPass.HasValue)
         {
+            if (!await EnsureResultFilesAvailableAsync(snapshot.Barcode))
+            {
+                return;
+            }
+
             RecordProductionResult(snapshot);
             PersistDailyYieldStatistics();
             await UpdateConsecutiveNgAlarmAsync(snapshot);
             await ExportResultAsync(snapshot);
+            if (snapshot.IsPass == false && _configuration.User.Jly.ShowFailResultPopup)
+            {
+                await ShowRuntimePopupAsync("测试结果：FAIL", requiresConfirmation: false);
+            }
             await UploadMesResultAsync(snapshot);
         }
     }
@@ -1595,6 +1727,76 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private async Task<bool> EnsureResultFilesAvailableAsync(string barcode)
+    {
+        var lockedFiles = GetLockedResultFiles(barcode);
+        if (lockedFiles.Count == 0)
+        {
+            return true;
+        }
+
+        var message = $"以下结果文件正在被占用或不可写入，请关闭文件后重新测试：{Environment.NewLine}"
+            + string.Join(Environment.NewLine, lockedFiles);
+        AddLog(message.Replace(Environment.NewLine, "；"));
+        await ShowRuntimePopupAsync(message, force: true, requiresConfirmation: true);
+        return false;
+    }
+
+    private IReadOnlyList<string> GetLockedResultFiles(string barcode)
+    {
+        var enabledExporters = _configuration.Export.EnabledPluginIds
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var candidateFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var output = _configuration.Output;
+
+        if (enabledExporters.Contains("Default.Csv"))
+        {
+            var fileName = $"{output.CsvName}_{DateTime.Now:yyyyMMdd}.csv";
+            if (output.ClassifyCsvByResult)
+            {
+                candidateFiles.Add(Path.Combine(output.CsvDirectory, "PASS", fileName));
+                candidateFiles.Add(Path.Combine(output.CsvDirectory, "FAIL", fileName));
+            }
+            else
+            {
+                candidateFiles.Add(Path.Combine(output.CsvDirectory, fileName));
+            }
+        }
+
+        if (enabledExporters.Contains("Default.CsvMes"))
+        {
+            candidateFiles.Add(Path.Combine(output.DclDirectory, $"{DateTime.Now:yyyyMMdd}.csv"));
+        }
+
+        if (enabledExporters.Contains("Default.Dcl") && !string.IsNullOrWhiteSpace(barcode))
+        {
+            candidateFiles.Add(Path.Combine(output.DclDirectory, $"{barcode}.dcl"));
+        }
+
+        return candidateFiles
+            .Where(File.Exists)
+            .Where(IsFileLockedForWrite)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool IsFileLockedForWrite(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
     private async Task UploadMesResultAsync(TestFlowSnapshot snapshot)
     {
         if (!_configuration.Mes.Enabled || !_configuration.Mes.OnlineMode)
@@ -1602,9 +1804,39 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        if (ShouldBlockMesUploadByYield(snapshot))
+        if (_configuration.User.Jly.RecordSecondTestYield)
         {
-            AddLog($"良率 {YieldRate:F2}% 低于设定值 {_configuration.Mes.YieldControlThreshold:F2}%，禁止上传 MES");
+            if (_pendingJlyRetestFailure is not null)
+            {
+                if (string.Equals(_pendingJlyRetestFailure.Barcode, snapshot.Barcode, StringComparison.OrdinalIgnoreCase))
+                {
+                    AddLog($"JLY 二次测试完成：SN {snapshot.Barcode}，按第二次结果上传 MES");
+                    _pendingJlyRetestFailure = null;
+                }
+                else
+                {
+                    AddLog($"JLY 二次测试未完成：SN {_pendingJlyRetestFailure.Barcode} 已按首次 FAIL 上传 MES");
+                    await UploadMesSnapshotAsync(_pendingJlyRetestFailure);
+                    _pendingJlyRetestFailure = null;
+                }
+            }
+
+            if (snapshot.IsPass == false)
+            {
+                _pendingJlyRetestFailure = snapshot;
+                AddLog($"JLY 已记录首次 FAIL：SN {snapshot.Barcode}，等待同一 SN 的第二次测试结果后上传 MES");
+                return;
+            }
+        }
+
+        await UploadMesSnapshotAsync(snapshot);
+    }
+
+    private async Task UploadMesSnapshotAsync(TestFlowSnapshot snapshot)
+    {
+        if (ShouldBlockMesUploadByYield())
+        {
+            AddLog($"JLY 测试片良率 {YieldRate:F2}% 小于或等于设定值 {_configuration.User.Jly.YieldUploadThreshold:F2}%，不上传 MES");
             return;
         }
 
@@ -1628,14 +1860,14 @@ public sealed class MainWindowViewModel : ViewModelBase
         return ShowRuntimePopupAsync("模拟提醒：MES 上传失败，请检查网络连接或 MES 服务状态。", force: true);
     }
 
-    private bool ShouldBlockMesUploadByYield(TestFlowSnapshot snapshot)
+    private bool ShouldBlockMesUploadByYield()
     {
-        if (!_configuration.Mes.EnableYieldControlUploadToMes || snapshot.IsPass == true)
+        if (!_configuration.User.Jly.TestPieceMode)
         {
             return false;
         }
 
-        return YieldRate < _configuration.Mes.YieldControlThreshold;
+        return YieldRate <= _configuration.User.Jly.YieldUploadThreshold;
     }
 
     private void RecordProductionResult(TestFlowSnapshot snapshot)

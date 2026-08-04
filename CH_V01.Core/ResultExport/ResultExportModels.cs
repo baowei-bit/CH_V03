@@ -74,3 +74,26 @@ public sealed class ResultExportResult
         };
     }
 }
+
+/// <summary>统一处理测试片模式下的结果文件命名。</summary>
+public static class ResultExportFileName
+{
+    public static string ApplyTestPieceSuffix(ResultExportContext context, string fileName)
+    {
+        return ApplyTestPieceSuffix(context.Configuration, fileName);
+    }
+
+    public static string ApplyTestPieceSuffix(AppConfiguration configuration, string fileName)
+    {
+        if (!configuration.User.Jly.TestPieceMode || string.IsNullOrWhiteSpace(fileName))
+        {
+            return fileName;
+        }
+
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        return name.EndsWith("_debug", StringComparison.OrdinalIgnoreCase)
+            ? fileName
+            : $"{name}_debug{extension}";
+    }
+}

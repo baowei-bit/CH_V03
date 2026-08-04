@@ -6,5 +6,5 @@ namespace CH_V01.App.Support;
 /// </summary>
 public static class ApplicationVersion
 {
-    public const string Current = "CH_V02.23";
+    public const string Current = "CH_V02.27";
 }

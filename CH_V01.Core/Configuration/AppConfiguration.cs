@@ -93,6 +93,11 @@ public sealed class CommunicationConfiguration
 
     public string TestItemRequestCommand { get; set; } = "Itemnum\\r\\n";
 
+    /// <summary>
+    /// 下位机报文从开始接收到完整 end 的最长允许时间（秒）。
+    /// </summary>
+    public int LowerMachinePayloadTimeoutSeconds { get; set; } = 60;
+
     public bool BarcodeSendDefaultOkCommand { get; set; }
 
     public string BarcodeSuccessCommandByValue { get; set; } = "L=DMOK1\\r\\n;B=DMOK2\\r\\n";
@@ -321,6 +326,11 @@ public sealed class TestItemConfiguration
 
 public sealed class UserConfiguration
 {
+    /// <summary>
+    /// 嘉联益现场专用的测试及 MES 上报规则。
+    /// </summary>
+    public JiaLianYiConfiguration Jly { get; set; } = new();
+
     public bool AutoScan { get; set; } = true;
 
     public bool ManualScanMode { get; set; }
@@ -412,6 +422,23 @@ public sealed class UserConfiguration
         existing.Password = account.Password;
         existing.Role = account.Role;
     }
+}
+
+public sealed class JiaLianYiConfiguration
+{
+    /// <summary>False 为标准片模式；True 为测试片模式。</summary>
+    public bool TestPieceMode { get; set; }
+
+    /// <summary>测试片模式下，良率小于或等于此值时不上传 MES。</summary>
+    public double YieldUploadThreshold { get; set; } = 90;
+
+    public bool UseSnTimeForTxtFileName { get; set; }
+
+    public bool ShowFailResultPopup { get; set; }
+
+    public bool RequireNumericTestValues { get; set; }
+
+    public bool RecordSecondTestYield { get; set; }
 }
 
 public sealed class DailyYieldStatistics

@@ -54,7 +54,8 @@ public sealed class CustomerPathArchiveService
             Directory.CreateDirectory(logDirectory);
 
             var copiedFiles = CopyExportFiles(exportResults, csvDirectory, dclDirectory);
-            var logPath = Path.Combine(logDirectory, $"{SafeFileName(snapshot.Barcode)}_{(snapshot.EndTime ?? DateTime.Now):yyyyMMddHHmmssfff}.log");
+            var logName = $"{SafeFileName(snapshot.Barcode)}_{(snapshot.EndTime ?? DateTime.Now):yyyyMMddHHmmssfff}.log";
+            var logPath = Path.Combine(logDirectory, ResultExportFileName.ApplyTestPieceSuffix(configuration, logName));
             await File.WriteAllTextAsync(logPath, BuildTestLog(snapshot), Encoding.UTF8, cancellationToken);
 
             var fileSummary = string.Join("; ", copiedFiles.Append(logPath));

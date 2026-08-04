@@ -15,6 +15,7 @@ public sealed class TestFlowService
     private bool? _isPass;
     private DateTime? _startTime;
     private DateTime? _endTime;
+    private bool _requireNumericTestValues;
 
     public TestFlowService(ITestProtocolAdapter? protocolAdapter = null)
     {
@@ -23,6 +24,7 @@ public sealed class TestFlowService
 
     public TestFlowSnapshot Initialize(TestFlowOptions options)
     {
+        _requireNumericTestValues = options.RequireNumericTestValues;
         _state = options.NoScanMode ? TestFlowState.Ready : TestFlowState.WaitingScan;
         _barcode = string.Empty;
         _message = options.NoScanMode
@@ -212,6 +214,15 @@ public sealed class TestFlowService
         }
 
         var failedItem = _items.FirstOrDefault(item => !item.IsPass);
+        if (failedItem is null && _requireNumericTestValues)
+        {
+            failedItem = _items.FirstOrDefault(item =>
+                !double.TryParse(item.TestValue, NumberStyles.Float, CultureInfo.InvariantCulture, out _));
+            if (failedItem is not null)
+            {
+                failedItem.Result = "NG";
+            }
+        }
         _isPass = failedItem is null;
         _firstFailItem = failedItem?.ItemName ?? string.Empty;
         _firstFailValue = failedItem?.TestValue ?? string.Empty;

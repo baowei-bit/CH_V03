@@ -29,9 +29,9 @@
     <ApplicationIcon>Assets\company-icon.ico</ApplicationIcon>
     <AssemblyName>CeHao</AssemblyName>
     <Product>CeHao</Product>
-    <Version>2.0.23</Version>
-    <AssemblyVersion>2.0.23.0</AssemblyVersion>
-    <FileVersion>2.0.23.0</FileVersion>
+    <Version>2.0.27</Version>
+    <AssemblyVersion>2.0.27.0</AssemblyVersion>
+    <FileVersion>2.0.27.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

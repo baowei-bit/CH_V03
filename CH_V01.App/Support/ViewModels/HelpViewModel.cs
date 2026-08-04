@@ -25,7 +25,9 @@ public sealed class HelpViewModel : DialogViewModelBase
     public string Version => $"当前版本：{ApplicationVersion.Current}";
 
     public string VersionHistory =>
-        "CH_V02.23：消息提醒支持居中放大与红色警示配色；自定义 CSV 导出器将摘要字段与测试项目表体合并为同一张横向表。"
+        "CH_V02.27：新增奕东 EAP（TIMS 后段接口）MES 插件与测试结果导出器；支持扫码前过站校验、测试后报工、可选治具/模具累计次数上报，以及原始 CSV、HYTM TXT 或两种格式同时导出。"
+        + "\n\n"
+        + "CH_V02.23：消息提醒支持居中放大与红色警示配色；自定义 CSV 导出器将摘要字段与测试项目表体合并为同一张横向表。"
         + "\n\n"
         + "CH_V02.22：产品 CSV 保存路径支持按测试结果创建 PASS/FAIL 文件夹，并将 CSV 写入对应目录。"
         + "\n\nCH_V02.21：支持通过 appsettings.json 配置默认操作员自动登录；操作员仅保留保存路径和通讯配置入口。"

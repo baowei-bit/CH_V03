@@ -61,7 +61,7 @@ public sealed class JiaLianYiExportPlugin : IResultExportPlugin
         Directory.CreateDirectory(directory);
 
         var csvName = context.GetOption("CsvName", context.Configuration.Output.CsvName);
-        var filePath = Path.Combine(directory, $"{csvName}_{DateTime.Now:yyyyMMdd}.csv");
+        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, $"{csvName}_{DateTime.Now:yyyyMMdd}.csv"));
         var exists = File.Exists(filePath);
 
         await using var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
@@ -91,7 +91,10 @@ public sealed class JiaLianYiExportPlugin : IResultExportPlugin
             extension = "." + extension;
         }
 
-        var filePath = Path.Combine(directory, MakeValidFileName(context.Snapshot.Barcode) + extension);
+        var fileName = context.Configuration.User.Jly.UseSnTimeForTxtFileName && string.Equals(extension, ".txt", StringComparison.OrdinalIgnoreCase)
+            ? $"{MakeValidFileName(context.Snapshot.Barcode)}_{DateTime.Now:yyMMddHHmmss}"
+            : MakeValidFileName(context.Snapshot.Barcode);
+        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, fileName + extension));
         var content = IsEnabled(context.GetOption("UseLegacyDclFormat"))
             ? BuildLegacyDcl(context)
             : BuildDcl(context);

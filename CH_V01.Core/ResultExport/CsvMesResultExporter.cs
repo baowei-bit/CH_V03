@@ -19,7 +19,7 @@ public sealed class CsvMesResultExporter : IResultExporter, IResultExportPlugin
         {
             var directory = context.Configuration.Output.DclDirectory;
             Directory.CreateDirectory(directory);
-            var filePath = Path.Combine(directory, $"{DateTime.Now:yyyyMMdd}.csv");
+            var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, $"{DateTime.Now:yyyyMMdd}.csv"));
             var fileExists = File.Exists(filePath);
 
             await using var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);

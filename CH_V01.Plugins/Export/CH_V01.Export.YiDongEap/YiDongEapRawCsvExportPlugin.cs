@@ -88,7 +88,7 @@ public sealed class YiDongEapRawCsvExportPlugin : IResultExportPlugin
         var now = context.EndTime;
         var result = GetResult(context);
         var suffix = Safe(context.GetOption("FileSuffix", "RIGHT"));
-        var fileName = $"{Safe(context.Snapshot.Barcode)}_{now:yyyyMMddHHmmss}_{result}_{suffix}.csv";
+        var fileName = ResultExportFileName.ApplyTestPieceSuffix(context, $"{Safe(context.Snapshot.Barcode)}_{now:yyyyMMddHHmmss}_{result}_{suffix}.csv");
         var path = Path.Combine(directory, fileName);
 
         await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
@@ -159,7 +159,7 @@ public sealed class YiDongEapRawCsvExportPlugin : IResultExportPlugin
         var startTime = context.StartTime;
         var endTime = context.EndTime;
         var result = GetResult(context);
-        var fileName = $"{Safe(context.Snapshot.Barcode)}_{endTime:yyyyMMddHHmmss}_{result}.txt";
+        var fileName = ResultExportFileName.ApplyTestPieceSuffix(context, $"{Safe(context.Snapshot.Barcode)}_{endTime:yyyyMMddHHmmss}_{result}.txt");
         var path = Path.Combine(directory, fileName);
 
         var lines = new[]
