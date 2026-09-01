@@ -26,6 +26,8 @@ public sealed class MesPluginConfigField
     public bool IsSecret { get; init; }
 
     public bool IsRequired { get; init; }
+
+    public IReadOnlyList<string> Choices { get; init; } = Array.Empty<string>();
 }
 
 public sealed class MesPluginOptions
@@ -80,6 +82,13 @@ public sealed class MesUploadRequest
     public DateTime EndTime { get; init; }
 
     public IReadOnlyList<MesTestItem> TestItems { get; init; } = Array.Empty<MesTestItem>();
+
+    public IReadOnlyList<MesUploadFile> Files { get; init; } = Array.Empty<MesUploadFile>();
+}
+
+public sealed class MesUploadFile
+{
+    public string FilePath { get; init; } = string.Empty;
 }
 
 public sealed class MesTestItem

@@ -8,10 +8,15 @@
         Height="620"
         MinWidth="820"
         MinHeight="560"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#EAF7FF">
     <Window.Resources>
         <converters:ConfigurationFieldVisibilityConverter x:Key="FieldVisibility" />
+        <converters:ConnectionTypeDisplayConverter x:Key="ConnectionTypeDisplay" />
+        <DataTemplate x:Key="ConnectionTypeItemTemplate">
+            <TextBlock Text="{Binding Converter={StaticResource ConnectionTypeDisplay}}" />
+        </DataTemplate>
         <Style TargetType="TextBox">
             <Setter Property="Height" Value="30" />
             <Setter Property="Padding" Value="8,3" />
@@ -68,7 +73,8 @@
                             <StackPanel Margin="0,0,0,12">
                                 <TextBlock Style="{StaticResource Label}" Text="通讯方式" />
                                 <ComboBox x:Name="ScannerConnectionTypeBox"
-                                          ItemsSource="{Binding DataContext.ConnectionTypes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          ItemsSource="{Binding DataContext.ScannerConnectionTypes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          ItemTemplate="{StaticResource ConnectionTypeItemTemplate}"
                                           SelectedItem="{Binding ConnectionType, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
 
@@ -122,16 +128,48 @@
                             </StackPanel>
 
                             <StackPanel Margin="0,0,0,14">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedItem, ElementName=ScannerConnectionTypeBox}" Value="{x:Static config:ConnectionType.UsbPosHid}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedItem, ElementName=ScannerConnectionTypeBox}" Value="{x:Static config:ConnectionType.Disabled}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
                                 <TextBlock Style="{StaticResource Label}" Text="超时(ms)" />
                                 <TextBox Text="{Binding TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
 
 
                             <Border BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedItem, ElementName=ScannerConnectionTypeBox}" Value="{x:Static config:ConnectionType.UsbPosHid}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedItem, ElementName=ScannerConnectionTypeBox}" Value="{x:Static config:ConnectionType.Disabled}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding DataContext.Configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
                                 <StackPanel>
-                                    <CheckBox Content="自动扫码触发"
-                                              IsChecked="{Binding DataContext.Configuration.Communication.ScannerTriggerEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
-                                              Margin="0,0,0,10" />
+                                     <CheckBox Content="自动扫码触发"
+                                               IsChecked="{Binding DataContext.Configuration.Communication.ScannerTriggerEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
+                                               Margin="0,0,0,10" />
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Style="{StaticResource Label}" Text="扫码等待超时（秒）" />
+                                        <TextBox Text="{Binding DataContext.Configuration.Communication.ScannerWaitTimeoutSeconds, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Foreground="#94A3B8" FontSize="11" Text="默认 10 秒；超时后向下位机发送 DMNG" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                    </StackPanel>
                                     <StackPanel Margin="0,0,0,10">
                                         <TextBlock Style="{StaticResource Label}" Text="扫码触发命令" />
                                         <TextBox Text="{Binding DataContext.Configuration.Communication.ScannerTriggerCommand, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
@@ -142,13 +180,37 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
+                            <Border BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedItem, ElementName=ScannerConnectionTypeBox}" Value="{x:Static config:ConnectionType.UsbPosHid}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="USB POS HID" Margin="0,0,0,6" />
+                                    <TextBlock Foreground="#52606D"
+                                               Text="由 Windows 自动识别并连接 POS HID 条形码扫描器。该模式无需串口号、波特率及触发命令，请按扫码枪按钮扫码。"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
                             <Button Content="测试扫码枪连接"
                                     Command="{Binding DataContext.TestScannerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    Focusable="False"
                                     Height="34" />
                             <TextBlock Text="{Binding DataContext.ScannerTestMessage, RelativeSource={RelativeSource AncestorType=Window}}"
                                        Foreground="#52606D"
                                        TextWrapping="Wrap"
                                        Margin="0,10,0,0" />
+                            <TextBlock Foreground="#94A3B8"
+                                       FontSize="11"
+                                       Text="连接测试完成后会释放设备；正式扫码请保存并退出本页，然后在主界面连接扫码枪。"
+                                       TextWrapping="Wrap"
+                                       Margin="0,5,0,0" />
                         </StackPanel>
                     </GroupBox>
 
@@ -157,7 +219,8 @@
                             <StackPanel Margin="0,0,0,12">
                                 <TextBlock Style="{StaticResource Label}" Text="通讯方式" />
                                 <ComboBox x:Name="LowerMachineConnectionTypeBox"
-                                          ItemsSource="{Binding DataContext.ConnectionTypes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          ItemsSource="{Binding DataContext.LowerMachineConnectionTypes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          ItemTemplate="{StaticResource ConnectionTypeItemTemplate}"
                                           SelectedItem="{Binding ConnectionType, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
 
@@ -215,8 +278,18 @@
                                 <TextBox Text="{Binding TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
 
-                            <Border BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14"
-                                    Visibility="{Binding DataContext.Configuration.Compatibility.VisibleConfigurationFields, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource FieldVisibility}, ConverterParameter=Communication.TestItemRequest}">
+                            <Border BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility"
+                                                Value="{Binding DataContext.Configuration.Compatibility.VisibleConfigurationFields, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource FieldVisibility}, ConverterParameter=Communication.TestItemRequest}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DataContext.Configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
                                 <StackPanel>
                                     <CheckBox Content="连接后请求测试项"
                                               IsChecked="{Binding DataContext.Configuration.Communication.TestItemRequestEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -229,6 +302,15 @@
                             </Border>
 
                             <Border BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DataContext.Configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
                                 <StackPanel>
                                     <CheckBox Content="条码验证成功后同时发送默认 OK 命令"
                                               IsChecked="{Binding DataContext.Configuration.Communication.BarcodeSendDefaultOkCommand, RelativeSource={RelativeSource AncestorType=Window}}"

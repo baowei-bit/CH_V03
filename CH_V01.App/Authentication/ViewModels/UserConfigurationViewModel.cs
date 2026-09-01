@@ -23,28 +23,39 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
 
     public bool IsStandardPieceMode
     {
-        get => !Configuration.Jly.TestPieceMode;
+        get => Configuration.Jly.RunMode == JiaLianYiRunMode.StandardPiece;
         set
         {
             if (value)
             {
-                Configuration.Jly.TestPieceMode = false;
-                OnPropertyChanged(nameof(IsStandardPieceMode));
-                OnPropertyChanged(nameof(IsTestPieceMode));
+                Configuration.Jly.RunMode = JiaLianYiRunMode.StandardPiece;
+                NotifyJiaLianYiModeChanged();
             }
         }
     }
 
     public bool IsTestPieceMode
     {
-        get => Configuration.Jly.TestPieceMode;
+        get => Configuration.Jly.RunMode == JiaLianYiRunMode.TestPiece;
         set
         {
             if (value)
             {
-                Configuration.Jly.TestPieceMode = true;
-                OnPropertyChanged(nameof(IsStandardPieceMode));
-                OnPropertyChanged(nameof(IsTestPieceMode));
+                Configuration.Jly.RunMode = JiaLianYiRunMode.TestPiece;
+                NotifyJiaLianYiModeChanged();
+            }
+        }
+    }
+
+    public bool IsDebugMode
+    {
+        get => Configuration.Jly.RunMode == JiaLianYiRunMode.Debug;
+        set
+        {
+            if (value)
+            {
+                Configuration.Jly.RunMode = JiaLianYiRunMode.Debug;
+                NotifyJiaLianYiModeChanged();
             }
         }
     }
@@ -135,5 +146,12 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
         OnPropertyChanged(nameof(IsAutoScanMode));
         OnPropertyChanged(nameof(IsManualScanMode));
         OnPropertyChanged(nameof(IsNoScanMode));
+    }
+
+    private void NotifyJiaLianYiModeChanged()
+    {
+        OnPropertyChanged(nameof(IsStandardPieceMode));
+        OnPropertyChanged(nameof(IsTestPieceMode));
+        OnPropertyChanged(nameof(IsDebugMode));
     }
 }

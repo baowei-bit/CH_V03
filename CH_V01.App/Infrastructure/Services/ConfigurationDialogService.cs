@@ -34,6 +34,14 @@ public sealed class ConfigurationDialogService : IConfigurationDialogService
         return window.ShowDialog() == true;
     }
 
+    public bool ShowKunshanJiaLianYiBasicConfiguration(AppConfiguration configuration, KunshanJiaLianYiRuntimeActions runtimeActions)
+    {
+        var viewModel = new KunshanJiaLianYiBasicConfigurationViewModel(configuration, runtimeActions);
+        var window = new KunshanJiaLianYiBasicConfigurationWindow { Owner = _owner, DataContext = viewModel };
+        BindCloseRequest(window, viewModel);
+        return window.ShowDialog() == true;
+    }
+
     public bool ShowCommunicationConfiguration(AppConfiguration configuration, CommunicationTestService communicationTestService)
     {
         var viewModel = new CommunicationConfigurationViewModel(configuration, communicationTestService);
@@ -86,6 +94,19 @@ public sealed class ConfigurationDialogService : IConfigurationDialogService
         return window.ShowDialog() == true;
     }
 
+    public bool ShowKunshanJiaLianYiConfiguration(AppConfiguration configuration)
+    {
+        var viewModel = new KunshanJiaLianYiConfigurationViewModel(configuration);
+        var window = new KunshanJiaLianYiConfigurationWindow
+        {
+            Owner = _owner,
+            DataContext = viewModel
+        };
+
+        BindCloseRequest(window, viewModel);
+        return window.ShowDialog() == true;
+    }
+
     public bool ShowTestItemConfiguration(TestItemConfigurationSet configuration)
     {
         var viewModel = new TestItemConfigurationViewModel(configuration);
@@ -103,6 +124,19 @@ public sealed class ConfigurationDialogService : IConfigurationDialogService
     {
         var viewModel = new UserConfigurationViewModel(configuration, compatibility, canManageAccounts);
         var window = new UserConfigurationWindow
+        {
+            Owner = _owner,
+            DataContext = viewModel
+        };
+
+        BindCloseRequest(window, viewModel);
+        return window.ShowDialog() == true;
+    }
+
+    public bool ShowKunshanJiaLianYiUserConfiguration(UserConfiguration configuration, CompatibilityConfiguration compatibility)
+    {
+        var viewModel = new UserConfigurationViewModel(configuration, compatibility, canManageAccounts: false);
+        var window = new KunshanJiaLianYiUserConfigurationWindow
         {
             Owner = _owner,
             DataContext = viewModel

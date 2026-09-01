@@ -7,6 +7,13 @@ namespace CH_V01.Core.Communication;
 
 public sealed class CommunicationTestService
 {
+    private readonly Func<DeviceConnectionConfiguration, IDeviceConnection>? _usbPosHidFactory;
+
+    public CommunicationTestService(Func<DeviceConnectionConfiguration, IDeviceConnection>? usbPosHidFactory = null)
+    {
+        _usbPosHidFactory = usbPosHidFactory;
+    }
+
     public async Task<CommunicationTestResult> TestAsync(DeviceConnectionConfiguration configuration, CancellationToken cancellationToken = default)
     {
         return configuration.ConnectionType switch
@@ -15,8 +22,31 @@ public sealed class CommunicationTestService
             ConnectionType.SerialPort => TestSerialPort(configuration),
             ConnectionType.TcpClient => await TestTcpClientAsync(configuration, cancellationToken),
             ConnectionType.TcpServer => TestTcpServer(configuration),
+            ConnectionType.UsbPosHid => await TestUsbPosHidAsync(configuration, cancellationToken),
             _ => CommunicationTestResult.Fail($"不支持的通讯方式：{configuration.ConnectionType}")
         };
+    }
+
+    private async Task<CommunicationTestResult> TestUsbPosHidAsync(
+        DeviceConnectionConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        if (_usbPosHidFactory is null)
+        {
+            return CommunicationTestResult.Fail("当前应用未注册 USB POS HID 连接提供器");
+        }
+
+        try
+        {
+            await using var connection = _usbPosHidFactory(configuration);
+            await connection.OpenAsync(cancellationToken);
+            await connection.CloseAsync(cancellationToken);
+            return CommunicationTestResult.Success($"{configuration.Name} USB POS HID 连接成功");
+        }
+        catch (Exception ex)
+        {
+            return CommunicationTestResult.Fail($"{configuration.Name} USB POS HID 连接失败：{ex.Message}");
+        }
     }
 
     private static CommunicationTestResult TestSerialPort(DeviceConnectionConfiguration configuration)

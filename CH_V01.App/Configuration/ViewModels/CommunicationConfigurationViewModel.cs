@@ -23,7 +23,11 @@ public sealed class CommunicationConfigurationViewModel : DialogViewModelBase
 
     public AppConfiguration Configuration { get; }
 
-    public ConnectionType[] ConnectionTypes { get; } = Enum.GetValues<ConnectionType>();
+    public ConnectionType[] ScannerConnectionTypes { get; } = Enum.GetValues<ConnectionType>();
+
+    public ConnectionType[] LowerMachineConnectionTypes { get; } = Enum.GetValues<ConnectionType>()
+        .Where(type => type != ConnectionType.UsbPosHid)
+        .ToArray();
 
     public string[] SerialPorts { get; } = GetSerialPortNames();
 

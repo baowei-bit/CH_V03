@@ -6,6 +6,7 @@
         Height="620"
         MinWidth="860"
         MinHeight="520"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#EAF7FF">
     <DockPanel>

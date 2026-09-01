@@ -60,8 +60,20 @@ public sealed class JiaLianYiExportPlugin : IResultExportPlugin
         var directory = GetResultDirectory(context, "CSV");
         Directory.CreateDirectory(directory);
 
-        var csvName = context.GetOption("CsvName", context.Configuration.Output.CsvName);
-        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, $"{csvName}_{DateTime.Now:yyyyMMdd}.csv"));
+        var exportDate = context.Snapshot.EndTime ?? DateTime.Now;
+        var itemCode = MakeValidFileName(context.GetOption("ItemCode"));
+        if (string.IsNullOrWhiteSpace(itemCode))
+        {
+            itemCode = MakeValidFileName(context.Snapshot.Barcode);
+        }
+
+        if (string.IsNullOrWhiteSpace(itemCode))
+        {
+            itemCode = MakeValidFileName(context.GetOption("CsvName", context.Configuration.Output.CsvName));
+        }
+
+        var fileName = $"{itemCode}_{exportDate:yyyyMMdd}.csv";
+        var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, fileName));
         var exists = File.Exists(filePath);
 
         await using var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);

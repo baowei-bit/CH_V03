@@ -4,6 +4,7 @@
         Title="软件帮助"
         Width="760"
         Height="560"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#EAF7FF">
     <DockPanel>

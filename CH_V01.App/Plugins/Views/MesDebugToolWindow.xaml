@@ -6,6 +6,7 @@
         Height="720"
         MinWidth="860"
         MinHeight="620"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#EAF7FF">
     <Window.Resources>

@@ -7,6 +7,7 @@
         Height="620"
         MinWidth="860"
         MinHeight="520"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#EAF7FF">
     <Window.Resources>
@@ -29,6 +30,46 @@
             <Setter Property="FontSize" Value="16" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style x:Key="FolderPickerButton" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,2" />
+            <Setter Property="Background" Value="#F0F9FF" />
+            <Setter Property="BorderBrush" Value="#7DD3FC" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#0369A1" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="FolderPickerBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="FolderPickerBorder" Property="Background" Value="#E0F2FE" />
+                                <Setter TargetName="FolderPickerBorder" Property="BorderBrush" Value="#38BDF8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="FolderPickerBorder" Property="Background" Value="#BAE6FD" />
+                                <Setter TargetName="FolderPickerBorder" Property="BorderBrush" Value="#0EA5E9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#94A3B8" />
+                                <Setter TargetName="FolderPickerBorder" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="FolderPickerBorder" Property="BorderBrush" Value="#E2E8F0" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -101,6 +142,11 @@
                                       IsChecked="{Binding Configuration.Communication.AutoConnectLowerMachineOnStartup}"
                                       Margin="0,8,14,0"
                                       VerticalAlignment="Center" />
+                            <CheckBox Content="允许连续重复测试"
+                                      IsChecked="{Binding Configuration.Identity.AllowContinuousRepeatTest}"
+                                      Margin="0,8,14,0"
+                                      VerticalAlignment="Center"
+                                      ToolTip="未勾选时，与上一笔实际开始测试相同的条码将被阻止；先测试其他条码后可再次测试。" />
                             <StackPanel Margin="0,0,14,0">
                                 <TextBlock Style="{StaticResource Label}" Text="下位机报文超时（秒）" />
                                 <TextBox Text="{Binding Configuration.Communication.LowerMachinePayloadTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
@@ -163,6 +209,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="170" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="84" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -176,18 +223,23 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="运行日志路径" Margin="0,0,12,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.LogDirectory}" />
-                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Configuration.Output.LogDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.LogDirectory}" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Configuration.Output.LogDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.LogDirectory}" />
+                            <Button Grid.Row="0" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectLogDirectory_Click" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.LogDirectory}" />
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="DCL/TXT 保存路径" Margin="0,0,12,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.DclDirectory}" />
-                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Configuration.Output.DclDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.DclDirectory}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Configuration.Output.DclDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.DclDirectory}" />
+                            <Button Grid.Row="1" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectDclDirectory_Click" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.DclDirectory}" />
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="产品 CSV 保存路径" Margin="0,0,12,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvDirectory}" />
-                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Configuration.Output.CsvDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvDirectory}" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Configuration.Output.CsvDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvDirectory}" />
+                            <Button Grid.Row="2" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectCsvDirectory_Click" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvDirectory}" />
                             <CheckBox Grid.Row="3" Grid.Column="1" Content="按测试结果生成 PASS/FAIL 文件夹" IsChecked="{Binding Configuration.Output.ClassifyCsvByResult}" Margin="0,0,0,12" />
                             <CheckBox Grid.Row="4" Grid.Column="1" Content="启用扫码客户路径保存" IsChecked="{Binding Configuration.Output.CustomerPathSaveEnabled}" Margin="0,0,0,12" />
                             <TextBlock Grid.Row="5" Grid.Column="0" Text="客户路径保存根目录" Margin="0,0,12,12" VerticalAlignment="Center" />
-                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Configuration.Output.CustomerPathRootDirectory, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Output.CustomerPathSaveEnabled}" Margin="0,0,0,12" />
+                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Configuration.Output.CustomerPathRootDirectory, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Output.CustomerPathSaveEnabled}" Margin="0,0,8,12" />
+                            <Button Grid.Row="5" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectCustomerPathRootDirectory_Click" IsEnabled="{Binding Configuration.Output.CustomerPathSaveEnabled}" Margin="0,0,0,12" />
                             <CheckBox Grid.Row="6" Grid.Column="1" Content="启用每片单独 CSV" IsChecked="{Binding Configuration.Output.SinglePieceCsvEnabled}" Margin="0,0,0,12" />
                             <TextBlock Grid.Row="7" Grid.Column="0" Text="单片 CSV 保存路径" Margin="0,0,12,12" VerticalAlignment="Center" />
-                            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Configuration.Output.SinglePieceCsvDirectory, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Output.SinglePieceCsvEnabled}" Margin="0,0,0,12" />
+                            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Configuration.Output.SinglePieceCsvDirectory, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Output.SinglePieceCsvEnabled}" Margin="0,0,8,12" />
+                            <Button Grid.Row="7" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectSinglePieceCsvDirectory_Click" IsEnabled="{Binding Configuration.Output.SinglePieceCsvEnabled}" Margin="0,0,0,12" />
                             <TextBlock Grid.Row="8" Grid.Column="0" Text="单片 CSV 名称规则" Margin="0,0,12,0" VerticalAlignment="Center" />
                             <StackPanel Grid.Row="8" Grid.Column="1">
                                 <TextBox Text="{Binding Configuration.Output.SinglePieceCsvFileName, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Output.SinglePieceCsvEnabled}" />

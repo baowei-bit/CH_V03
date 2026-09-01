@@ -9,6 +9,7 @@
     <ProjectReference Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.SuzhouWeiXin\CH_V01.Mes.SuzhouWeiXin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.Bomin\CH_V01.Mes.Bomin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.YiDongEap\CH_V01.Mes.YiDongEap.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.HuaQin\CH_V01.Mes.HuaQin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V01.Plugins\Export\CH_V01.Export.JiaLianYi\CH_V01.Export.JiaLianYi.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V01.Plugins\Export\CH_V01.Export.SuzhouJiaLianYiLuEnZe\CH_V01.Export.SuzhouJiaLianYiLuEnZe.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V01.Plugins\Export\CH_V01.Export.SuzhouWeiXin\CH_V01.Export.SuzhouWeiXin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
@@ -22,22 +23,29 @@
 
   <PropertyGroup>
      <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Assets\company-icon.ico</ApplicationIcon>
     <AssemblyName>CeHao</AssemblyName>
     <Product>CeHao</Product>
-    <Version>2.0.27</Version>
-    <AssemblyVersion>2.0.27.0</AssemblyVersion>
-    <FileVersion>2.0.27.0</FileVersion>
+    <Version>2.0.78</Version>
+    <AssemblyVersion>2.0.78.0</AssemblyVersion>
+    <FileVersion>2.0.78.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <Resource Include="Assets\company-logo.png" />
     <Resource Include="Assets\company-icon.png" />
     <Resource Include="Assets\company-logo-full.jpg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="config\appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -59,10 +67,12 @@
       <MesPluginFiles Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.SuzhouWeiXin\bin\$(Configuration)\net8.0\CH_V01.Mes.SuzhouWeiXin.dll" />
       <MesPluginFiles Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.Bomin\bin\$(Configuration)\net8.0\CH_V01.Mes.Bomin.dll" />
       <MesPluginFiles Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.YiDongEap\bin\$(Configuration)\net8.0\CH_V01.Mes.YiDongEap.dll" />
+      <MesPluginFiles Include="..\CH_V01.Plugins\Mes\CH_V01.Mes.HuaQin\bin\$(Configuration)\net8.0\CH_V01.Mes.HongXin.dll" />
     </ItemGroup>
     <MakeDir Directories="$(OutputPath)plugins\mes" />
     <ItemGroup>
       <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\BW_V01.*.dll" />
+      <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\CH_V01.Mes.HuaQin.dll" />
     </ItemGroup>
     <Delete Files="@(StaleMesPluginFiles)" />
     <Copy SourceFiles="@(MesPluginFiles)" DestinationFolder="$(OutputPath)plugins\mes" SkipUnchangedFiles="true" Condition="Exists('%(MesPluginFiles.Identity)')" />

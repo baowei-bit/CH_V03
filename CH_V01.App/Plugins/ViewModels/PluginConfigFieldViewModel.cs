@@ -33,6 +33,7 @@ public sealed class PluginConfigFieldViewModel : ViewModelBase
         }
 
         _value ??= string.Empty;
+        BrowseDirectoryCommand = new Commands.RelayCommand(_ => BrowseDirectory());
     }
 
     public string Key { get; }
@@ -46,6 +47,42 @@ public sealed class PluginConfigFieldViewModel : ViewModelBase
     public bool IsSecret { get; }
 
     public bool IsCheckbox { get; }
+
+    public IReadOnlyList<string> Choices { get; } = Array.Empty<string>();
+
+    public bool IsHongXinMesMode => string.Equals(Key, "MesUploadMode", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsCapacityUploadMode
+    {
+        get => string.Equals(Value, "Capacity", StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (value)
+            {
+                Value = "Capacity";
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsSinglePieceStationMode));
+            }
+        }
+    }
+
+    public bool IsSinglePieceStationMode
+    {
+        get => string.Equals(Value, "Station", StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (value)
+            {
+                Value = "Station";
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsCapacityUploadMode));
+            }
+        }
+    }
+
+    public bool IsDirectory => Key.EndsWith("Directory", StringComparison.OrdinalIgnoreCase);
+
+    public System.Windows.Input.ICommand BrowseDirectoryCommand { get; }
 
     public string Label => IsRequired ? $"{DisplayName} *" : DisplayName;
 
@@ -70,6 +107,9 @@ public sealed class PluginConfigFieldViewModel : ViewModelBase
             {
                 _values[Key] = value;
             }
+
+            OnPropertyChanged(nameof(IsCapacityUploadMode));
+            OnPropertyChanged(nameof(IsSinglePieceStationMode));
         }
     }
 
@@ -77,5 +117,14 @@ public sealed class PluginConfigFieldViewModel : ViewModelBase
     {
         get => bool.TryParse(Value, out var value) ? value : true;
         set => Value = value.ToString().ToLowerInvariant();
+    }
+
+    private void BrowseDirectory()
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "选择保存文件夹" };
+        if (dialog.ShowDialog() == true)
+        {
+            Value = dialog.FolderName;
+        }
     }
 }

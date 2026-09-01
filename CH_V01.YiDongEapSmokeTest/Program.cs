@@ -15,7 +15,7 @@ Directory.CreateDirectory(outputDirectory);
 try
 {
     var port = ReservePort();
-    using var server = new FakeYiDongEapServer(port, expectedRequestCount: 3);
+    using var server = new FakeYiDongEapServer(port, expectedRequestCount: 4);
     server.Start();
 
     var mesPlugin = new YiDongEapMesPlugin();
@@ -52,7 +52,6 @@ try
         EndTime = new DateTime(2026, 7, 24, 10, 0, 2)
     })).IsSuccess, "MES station report and fixture count");
 
-    await server.WaitForRequestsAsync();
     Assert(server.Requests.Count == 3, "MES request count");
     Assert(server.GetInterfaceType(0) == "TIMS_CHECK_LOTCARD_CARRIER_SN_STATION", "pre-check interface type");
     Assert(server.GetInterfaceType(1) == "TIMS_LOTCARD_CARRIER_SN_STATION", "station report interface type");
@@ -61,6 +60,16 @@ try
     Assert(server.Requests[1].Contains("\"STATUS\":\"OK\"", StringComparison.Ordinal), "PASS to OK mapping");
     Assert(server.Requests[1].Contains("\"FID\":\"1\",\"QTY\":\"10\"", StringComparison.Ordinal), "material detail mapping");
     Assert(server.Requests[2].Contains("\"TEST_COUNT\":\"1\"", StringComparison.Ordinal), "fixture count mapping");
+
+    options.Values["NoBarcodeMode"] = "Y";
+    Assert((await mesPlugin.UploadResultAsync(options, new MesUploadRequest
+    {
+        Barcode = "NOSCAN20260808120000",
+        Result = "PASS"
+    })).IsSuccess, "no-barcode fixture upload");
+    await server.WaitForRequestsAsync();
+    Assert(server.Requests.Count == 4, "no-barcode request count");
+    Assert(server.GetInterfaceType(3) == "TIMS_RECEIVE_MOLD_FIXTRUE_COUNT", "no-barcode skips station report");
 
     var csvPlugin = new YiDongEapRawCsvExportPlugin();
     var configuration = new AppConfiguration();
@@ -96,22 +105,103 @@ try
             ["LineId"] = "LINE-01",
             ["BoardId"] = "B1",
             ["SectionName"] = "CompTest",
+            ["CompTestIndexes"] = "1",
+            ["FunTestIndexes"] = "2",
             ["FileSuffix"] = "RIGHT",
             ["Operator"] = "OP-01"
         }
     });
 
     Assert(exportResult.IsSuccess && File.Exists(exportResult.FilePath), "CSV export");
-    Assert(Path.GetFileName(exportResult.FilePath) == "SN-0001_20260724100002_PASS_RIGHT.csv", "CSV filename");
+    Assert(Path.GetFileName(exportResult.FilePath) == "SN-0001_20260724100002000_RIGHT.csv", "per-unit CSV filename");
     var bytes = await File.ReadAllBytesAsync(exportResult.FilePath);
-    Assert(bytes.Length >= 3 && !(bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF), "CSV UTF-8 without BOM");
+    Assert(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF, "CSV UTF-8 with BOM");
     var csv = Encoding.UTF8.GetString(bytes);
     Assert(csv.Contains("\r\n\r\n", StringComparison.Ordinal), "CSV blank-line sections");
     Assert(csv.Contains("\"DateTime\",\"2026-07-24 10:00:02\",\"\"", StringComparison.Ordinal), "CSV key-value header");
     Assert(csv.Contains("\"CompTest:\"", StringComparison.Ordinal), "CSV CompTest section");
+    Assert(csv.Contains("\"FunTest:\"", StringComparison.Ordinal), "CSV FunTest section");
+    Assert(csv.Contains("\"Step\",\"BX\",\"Descrip\",\"Module\",\"Type\",\"Function\",\"Delay\",\"Test\",\"Dev%\",\"-%\",\"+%\",\"Result\",\"Info\"", StringComparison.Ordinal), "CSV FunTest header");
     Assert(csv.Contains("\"1\",\"B1\",\"A1\",\"\",\"R1\"", StringComparison.Ordinal), "CSV test row");
+    Assert(csv.Contains("\"1\",\"B1\",\"A1\",\"\",\"R1\",\"9~11\",\"\",\"A1\",\"B1\"", StringComparison.Ordinal), "CSV CompTest point limits");
+    Assert(csv.Contains("\"2\",\"B1\",\"C1\",\"\",\"\",\"\",\"\",\"0.867\",\"\",\"B2\",\"A2\",\"OK\",\"A2 - B2\"", StringComparison.Ordinal), "CSV FunTest point limits");
     Assert(csv.Contains("\"9.983\"", StringComparison.Ordinal), "CSV measured value");
     Assert(csv.EndsWith("\"LogEnd\"\r\n", StringComparison.Ordinal), "CSV terminator");
+
+    var shortSnapshot = new TestFlowSnapshot
+    {
+        Barcode = "SN-SHORT",
+        IsPass = false,
+        StartTime = new DateTime(2026, 7, 24, 10, 2, 0),
+        EndTime = new DateTime(2026, 7, 24, 10, 2, 2),
+        Items = new[]
+        {
+            new TestItemResult { Index = 1, ItemName = "SHORT", PointA = "1；3；5", PointB = "2；4；6", TestValue = "0；0；0", Result = "NG" }
+        }
+    };
+    var shortExportResult = await csvPlugin.ExportAsync(new ResultExportContext
+    {
+        Configuration = configuration,
+        Snapshot = shortSnapshot,
+        PluginOptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["OutputFormat"] = "CSV",
+            ["CsvDirectory"] = outputDirectory,
+            ["ShortTestIndexes"] = "1"
+        }
+    });
+    Assert(shortExportResult.IsSuccess, "SHORT CSV export");
+    csv = await File.ReadAllTextAsync(shortExportResult.FilePath);
+    Assert(csv.Contains("\"ShortFailCount\",\"3\"", StringComparison.Ordinal), "SHORT point-pair count");
+    Assert(csv.Contains("=\"\"1 - 2\"\"", StringComparison.Ordinal), "first SHORT point pair is exported as text without apostrophe");
+    Assert(csv.Contains("=\"\"3 - 4\"\"", StringComparison.Ordinal), "second SHORT point pair is exported as text without apostrophe");
+    Assert(csv.Contains("=\"\"5 - 6\"\"", StringComparison.Ordinal), "third SHORT point pair is exported as text without apostrophe");
+    Assert(!csv.Contains("\"CompTest:\"", StringComparison.Ordinal), "SHORT does not enter the CompTest detail section");
+
+    var secondExportResult = await csvPlugin.ExportAsync(new ResultExportContext
+    {
+        Configuration = configuration,
+        Snapshot = new TestFlowSnapshot
+        {
+            Barcode = "SN-0002",
+            IsPass = false,
+            StartTime = new DateTime(2026, 7, 24, 10, 1, 0),
+            EndTime = new DateTime(2026, 7, 24, 10, 1, 2),
+            Items = snapshot.Items
+        },
+        PluginOptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["OutputFormat"] = "CSV",
+            ["CsvDirectory"] = outputDirectory
+        }
+    });
+    Assert(secondExportResult.IsSuccess && secondExportResult.FilePath != exportResult.FilePath, "per-unit CSV has an independent path");
+    csv = await File.ReadAllTextAsync(secondExportResult.FilePath);
+    Assert(csv.Split("\"DateTime\"", StringSplitOptions.None).Length == 2, "per-unit CSV contains one test record");
+
+    var horizontalDirectory = Path.Combine(outputDirectory, "horizontal");
+    var verticalDirectory = Path.Combine(outputDirectory, "vertical");
+    var dualCsvResult = await csvPlugin.ExportAsync(new ResultExportContext
+    {
+        Configuration = configuration,
+        Snapshot = snapshot,
+        PluginOptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["OutputFormat"] = "CSV",
+            ["ExportHorizontalCsv"] = "true",
+            ["HorizontalCsvDirectory"] = horizontalDirectory,
+            ["HorizontalCsvName"] = "YiDongHorizontal",
+            ["ExportVerticalCsv"] = "true",
+            ["CsvDirectory"] = verticalDirectory
+        }
+    });
+    var horizontalPath = Path.Combine(horizontalDirectory, "YiDongHorizontal_20260724.csv");
+    var verticalPath = Path.Combine(verticalDirectory, "SN-0001_20260724100002000_RIGHT.csv");
+    Assert(dualCsvResult.IsSuccess && File.Exists(horizontalPath) && File.Exists(verticalPath), "horizontal and vertical CSV export");
+    var horizontalCsv = await File.ReadAllTextAsync(horizontalPath);
+    Assert(horizontalCsv.StartsWith("SerialNumber,Test Pass/Fail Status,errCode", StringComparison.Ordinal), "horizontal CSV header");
+    Assert(horizontalCsv.Contains("high_point----->", StringComparison.Ordinal), "horizontal CSV point row");
+    Assert(horizontalCsv.Contains("SN-0001,PASS", StringComparison.Ordinal), "horizontal CSV result row");
 
     var txtResult = await csvPlugin.ExportAsync(new ResultExportContext
     {

@@ -82,14 +82,14 @@ public sealed class TestFlowService
         return Snapshot();
     }
 
-    public TestFlowSnapshot StartTest()
+    public TestFlowSnapshot StartTest(DateTime? startTime = null)
     {
         _state = TestFlowState.Testing;
         _message = $"产品 {_barcode} 测试开始";
         _firstFailItem = string.Empty;
         _firstFailValue = string.Empty;
         _isPass = null;
-        _startTime = DateTime.Now;
+        _startTime = startTime ?? DateTime.Now;
         _endTime = null;
         ResetItemValues();
         return Snapshot();
@@ -149,11 +149,11 @@ public sealed class TestFlowService
         return Snapshot();
     }
 
-    public TestFlowSnapshot CompleteTest(string payload)
+    public TestFlowSnapshot CompleteTest(string payload, DateTime? fallbackStartTime = null)
     {
         if (_state != TestFlowState.Testing)
         {
-            StartTest();
+            StartTest(fallbackStartTime);
         }
 
         var values = _protocolAdapter.ParseResults(payload).ToList();

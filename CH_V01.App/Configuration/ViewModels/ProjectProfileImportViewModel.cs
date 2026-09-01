@@ -81,9 +81,9 @@ public sealed class ProjectProfileItemViewModel
         {
             ConnectionType.SerialPort => $"{configuration.PortName} / {configuration.BaudRate}",
             ConnectionType.TcpClient or ConnectionType.TcpServer => $"{configuration.IpAddress}:{configuration.Port}",
+            ConnectionType.UsbPosHid => "USB POS HID",
             ConnectionType.Disabled => "已禁用",
             _ => configuration.ConnectionType.ToString()
         };
     }
 }
-

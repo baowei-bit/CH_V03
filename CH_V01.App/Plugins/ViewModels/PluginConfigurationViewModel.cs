@@ -15,6 +15,23 @@ public sealed class PluginConfigurationViewModel : DialogViewModelBase
         "Default.CsvMes"
     };
 
+    private static readonly HashSet<string> HongXinOaFieldKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Endpoint", "UploadType", "MaterialNo", "DeviceNo", "ItemId", "BatchNo", "TimeoutSeconds"
+    };
+
+    private static readonly HashSet<string> HongXinCommonMesFieldKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "MesUploadMode", "MesBasicAuthUser", "MesBasicAuthPassword", "MesTerminalMac", "MesTerminalName",
+        "MesOperatorId", "MesStartScStatus", "MesStartWi09Ruid", "MesStartScStno", "MesStartScRcno",
+        "MesStartPtNo", "MesStartVcNo"
+    };
+
+    private static readonly HashSet<string> HongXinMappingFieldKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "MesCharacteristicCodeMap", "MesDefectCodeMap"
+    };
+
     private readonly IReadOnlyDictionary<string, IMesPlugin> _mesPlugins;
     private readonly IReadOnlyDictionary<string, IResultExportPlugin> _exportPlugins;
 
@@ -29,6 +46,7 @@ public sealed class PluginConfigurationViewModel : DialogViewModelBase
         MesPluginChoices = BuildMesPluginChoices(_mesPlugins.Values).ToList();
         ExportPluginChoices = BuildExportPluginChoices(_exportPlugins.Values).ToList();
         MesPluginFields = BuildMesPluginFields();
+        UpdateHongXinMesFieldGroups();
         ExportPluginFields = BuildExportPluginFields();
         SaveCommand = new RelayCommand(() => Close(true));
         CancelCommand = new RelayCommand(() => Close(false));
@@ -42,9 +60,23 @@ public sealed class PluginConfigurationViewModel : DialogViewModelBase
 
     public IReadOnlyList<PluginConfigFieldViewModel> MesPluginFields { get; private set; }
 
+    public IReadOnlyList<PluginConfigFieldViewModel> OaMesPluginFields { get; private set; } = Array.Empty<PluginConfigFieldViewModel>();
+
+    public IReadOnlyList<PluginConfigFieldViewModel> CommonMesPluginFields { get; private set; } = Array.Empty<PluginConfigFieldViewModel>();
+
+    public IReadOnlyList<PluginConfigFieldViewModel> CapacityMesPluginFields { get; private set; } = Array.Empty<PluginConfigFieldViewModel>();
+
+    public IReadOnlyList<PluginConfigFieldViewModel> StationMesPluginFields { get; private set; } = Array.Empty<PluginConfigFieldViewModel>();
+
+    public IReadOnlyList<PluginConfigFieldViewModel> MappingMesPluginFields { get; private set; } = Array.Empty<PluginConfigFieldViewModel>();
+
     public IReadOnlyList<PluginConfigFieldViewModel> ExportPluginFields { get; private set; }
 
     public bool HasMesPluginFields => MesPluginFields.Count > 0;
+
+    public bool IsHongXinMesPlugin => string.Equals(SelectedMesPluginId, "HongXin.OA", StringComparison.OrdinalIgnoreCase);
+
+    public bool HasOtherMesPluginFields => HasMesPluginFields && !IsHongXinMesPlugin;
 
     public bool HasExportPluginFields => ExportPluginFields.Count > 0;
 
@@ -58,10 +90,13 @@ public sealed class PluginConfigurationViewModel : DialogViewModelBase
             Configuration.Mes.SelectedPlugin = string.IsNullOrWhiteSpace(value) ? "None" : value;
             Configuration.Mes.Enabled = !string.IsNullOrWhiteSpace(value);
             MesPluginFields = BuildMesPluginFields();
+            UpdateHongXinMesFieldGroups();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedMesPluginName));
             OnPropertyChanged(nameof(MesPluginFields));
             OnPropertyChanged(nameof(HasMesPluginFields));
+            OnPropertyChanged(nameof(IsHongXinMesPlugin));
+            OnPropertyChanged(nameof(HasOtherMesPluginFields));
         }
     }
 
@@ -157,6 +192,32 @@ public sealed class PluginConfigurationViewModel : DialogViewModelBase
                 field.HelpText,
                 options))
             .ToList();
+    }
+
+    private void UpdateHongXinMesFieldGroups()
+    {
+        if (!IsHongXinMesPlugin)
+        {
+            OaMesPluginFields = Array.Empty<PluginConfigFieldViewModel>();
+            CommonMesPluginFields = Array.Empty<PluginConfigFieldViewModel>();
+            CapacityMesPluginFields = Array.Empty<PluginConfigFieldViewModel>();
+            StationMesPluginFields = Array.Empty<PluginConfigFieldViewModel>();
+            MappingMesPluginFields = Array.Empty<PluginConfigFieldViewModel>();
+        }
+        else
+        {
+            OaMesPluginFields = MesPluginFields.Where(field => HongXinOaFieldKeys.Contains(field.Key)).ToList();
+            CommonMesPluginFields = MesPluginFields.Where(field => HongXinCommonMesFieldKeys.Contains(field.Key)).ToList();
+            CapacityMesPluginFields = MesPluginFields.Where(field => field.Key.StartsWith("MesCapacity", StringComparison.OrdinalIgnoreCase)).ToList();
+            StationMesPluginFields = MesPluginFields.Where(field => field.Key.StartsWith("MesStation", StringComparison.OrdinalIgnoreCase)).ToList();
+            MappingMesPluginFields = MesPluginFields.Where(field => HongXinMappingFieldKeys.Contains(field.Key)).ToList();
+        }
+
+        OnPropertyChanged(nameof(OaMesPluginFields));
+        OnPropertyChanged(nameof(CommonMesPluginFields));
+        OnPropertyChanged(nameof(CapacityMesPluginFields));
+        OnPropertyChanged(nameof(StationMesPluginFields));
+        OnPropertyChanged(nameof(MappingMesPluginFields));
     }
 
     private static IEnumerable<PluginSelectionItemViewModel> BuildMesPluginChoices(IEnumerable<IMesPlugin> mesPlugins)

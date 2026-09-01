@@ -109,6 +109,15 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="StandardPieceModeButton" TargetType="Button" BasedOn="{StaticResource OuterStatusItem}">
+            <Style.Triggers><DataTrigger Binding="{Binding IsStandardPieceMode}" Value="True"><Setter Property="Background" Value="#16A34A" /><Setter Property="BorderBrush" Value="#15803D" /><Setter Property="Foreground" Value="White" /></DataTrigger></Style.Triggers>
+        </Style>
+        <Style x:Key="TestPieceModeButton" TargetType="Button" BasedOn="{StaticResource OuterStatusItem}">
+            <Style.Triggers><DataTrigger Binding="{Binding IsTestPieceMode}" Value="True"><Setter Property="Background" Value="#2563EB" /><Setter Property="BorderBrush" Value="#1D4ED8" /><Setter Property="Foreground" Value="White" /></DataTrigger></Style.Triggers>
+        </Style>
+        <Style x:Key="DebugModeButton" TargetType="Button" BasedOn="{StaticResource OuterStatusItem}">
+            <Style.Triggers><DataTrigger Binding="{Binding IsDebugMode}" Value="True"><Setter Property="Background" Value="#9333EA" /><Setter Property="BorderBrush" Value="#7E22CE" /><Setter Property="Foreground" Value="White" /></DataTrigger></Style.Triggers>
+        </Style>
         <Style x:Key="TitleBarButton" TargetType="Button">
             <Setter Property="Width" Value="46" />
             <Setter Property="Height" Value="34" />
@@ -195,6 +204,8 @@
                         HorizontalAlignment="Center">
                 <Button Style="{StaticResource OuterStatusItem}"
                         Command="{Binding ToggleScannerConnectionCommand}"
+                        Focusable="False"
+                        Visibility="{Binding IsStandardConfigurationMode, Converter={StaticResource BooleanToVisibilityConverter}}"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <StackPanel Orientation="Horizontal">
                         <Grid Width="18" Height="18">
@@ -207,6 +218,7 @@
 
                 <Button Style="{StaticResource OuterStatusItem}"
                         Command="{Binding ToggleLowerMachineConnectionCommand}"
+                        Visibility="{Binding IsStandardConfigurationMode, Converter={StaticResource BooleanToVisibilityConverter}}"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <StackPanel Orientation="Horizontal">
                         <Grid Width="18" Height="18">
@@ -219,6 +231,7 @@
 
                 <Button Style="{StaticResource OuterStatusItem}"
                         Command="{Binding ToggleOnlineModeCommand}"
+                        Visibility="{Binding IsStandardConfigurationMode, Converter={StaticResource BooleanToVisibilityConverter}}"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <StackPanel Orientation="Horizontal">
                         <Grid Width="18" Height="18">
@@ -228,6 +241,12 @@
                         <TextBlock Text="MES" Margin="7,0,0,0" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" />
                     </StackPanel>
                 </Button>
+                <StackPanel Orientation="Horizontal"
+                            Visibility="{Binding IsKunshanJiaLianYiDedicatedConfiguration, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Border Background="#F8FCFF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="8,3" Margin="0,0,8,0"><StackPanel Orientation="Horizontal"><Ellipse Width="12" Height="12" Fill="{Binding ScannerStateBrush}" Margin="0,0,6,0" /><TextBlock Text="{Binding ScannerState}" FontSize="12" FontWeight="SemiBold" /></StackPanel></Border>
+                    <Border Background="#F8FCFF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="8,3" Margin="0,0,8,0"><StackPanel Orientation="Horizontal"><Ellipse Width="12" Height="12" Fill="{Binding LowerMachineStateBrush}" Margin="0,0,6,0" /><TextBlock Text="{Binding LowerMachineState}" FontSize="12" FontWeight="SemiBold" /></StackPanel></Border>
+                    <Border Background="#F8FCFF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="8,3" Margin="0,0,8,0"><StackPanel Orientation="Horizontal"><Ellipse Width="12" Height="12" Fill="{Binding MesStateBrush}" Margin="0,0,6,0" /><TextBlock Text="{Binding MesState}" FontSize="12" FontWeight="SemiBold" /></StackPanel></Border>
+                </StackPanel>
             </StackPanel>
 
             <Button Grid.Column="2"
@@ -259,7 +278,7 @@
         </Grid>
 
         <Menu DockPanel.Dock="Top" Background="#BAE6FD" BorderBrush="#38BDF8" BorderThickness="0,0,0,1">
-            <MenuItem Header="配置管理">
+            <MenuItem Header="配置管理" Visibility="{Binding IsStandardConfigurationMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <MenuItem Header="项目基础">
                     <MenuItem Header="基础配置"
                               Command="{Binding OpenBasicConfigurationCommand}"
@@ -297,26 +316,60 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="账号管理"
-                      Visibility="{Binding CanManageUsers, Converter={StaticResource BooleanToVisibilityConverter}}">
+                      Visibility="{Binding CanManageUsersInStandardMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <MenuItem Header="用户配置"
                           Command="{Binding OpenUserConfigurationCommand}"
                           IsEnabled="{Binding CanManageUsers}" />
                 <MenuItem Header="切换登录" Command="{Binding SwitchLoginCommand}" />
             </MenuItem>
+            <MenuItem Header="昆山嘉联益配置"
+                      Visibility="{Binding IsKunshanJiaLianYiDedicatedConfiguration, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <MenuItem Header="基础资料"
+                          Command="{Binding OpenBasicConfigurationCommand}"
+                          IsEnabled="{Binding CanOpenBasicConfiguration}" />
+                <MenuItem Header="MES 与导出设置"
+                          Command="{Binding OpenKunshanJiaLianYiConfigurationCommand}"
+                          IsEnabled="{Binding CanManageSystem}" />
+                <MenuItem Header="用户设置"
+                          Command="{Binding OpenUserConfigurationCommand}"
+                          IsEnabled="{Binding CanManageUsers}" />
+                <MenuItem Header="扫码枪 / 下位机通讯"
+                          Command="{Binding OpenCommunicationConfigurationCommand}"
+                          IsEnabled="{Binding CanOpenCommunicationConfiguration}" />
+                <MenuItem Header="切换登录" Command="{Binding SwitchLoginCommand}" />
+            </MenuItem>
             <MenuItem Header="运行数据"
-                      Visibility="{Binding CanViewAnalysis, Converter={StaticResource BooleanToVisibilityConverter}}">
+                      Visibility="{Binding CanViewAnalysisInStandardMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <MenuItem Header="数据分析"
                           Command="{Binding OpenDataAnalysisCommand}"
                           IsEnabled="{Binding CanViewAnalysis}" />
             </MenuItem>
             <MenuItem Header="帮助"
-                      Visibility="{Binding CanViewHelp, Converter={StaticResource BooleanToVisibilityConverter}}">
+                      Visibility="{Binding CanViewHelpInStandardMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <MenuItem Header="软件帮助" Command="{Binding HelpCommand}" />
             </MenuItem>
         </Menu>
 
         <Border DockPanel.Dock="Top" Background="White" BorderBrush="#38BDF8" BorderThickness="0,0,0,1" Padding="0,8">
-            <TextBlock Text="{Binding HeaderTitle}" FontSize="30" Foreground="#1D4ED8" HorizontalAlignment="Center" />
+            <Grid>
+                <TextBlock Text="{Binding HeaderTitle}" FontSize="30" Foreground="#1D4ED8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Border Background="{Binding JiaLianYiRunModeBackground}"
+                        BorderBrush="{Binding JiaLianYiRunModeBackground}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="18,6"
+                        Width="310"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Margin="0,0,24,0"
+                        Visibility="{Binding IsKunshanJiaLianYiDedicatedConfiguration, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding JiaLianYiRunModeText}"
+                               Foreground="{Binding JiaLianYiRunModeForeground}"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               TextAlignment="Center" />
+                </Border>
+            </Grid>
         </Border>
 
         <StatusBar DockPanel.Dock="Bottom" Background="#F0F9FF" BorderBrush="#7DD3FC" BorderThickness="0,1,0,0">
@@ -407,7 +460,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="站位" Margin="0,0,10,8" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="站别" Margin="0,0,10,8" VerticalAlignment="Center" />
                             <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource ValueBox}" Text="{Binding StationNo}" Margin="0,0,12,8" />
                             <TextBlock Grid.Row="0" Grid.Column="2" Text="工单" Margin="0,0,10,8" VerticalAlignment="Center" />
                             <TextBlock Grid.Row="0" Grid.Column="3" Style="{StaticResource ValueBox}" Text="{Binding MesProdNo}" Margin="0,0,0,8" />
@@ -429,6 +482,9 @@
                         <DataGrid ItemsSource="{Binding TestItems}"
                                   AutoGenerateColumns="False"
                                   CanUserAddRows="False"
+                                  CanUserReorderColumns="False"
+                                  CanUserResizeColumns="True"
+                                  CanUserSortColumns="False"
                                   FontFamily="Microsoft YaHei UI"
                                   FontSize="15"
                                   RowHeight="36"

@@ -6,6 +6,7 @@
         Height="620"
         MinWidth="820"
         MinHeight="520"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#EAF7FF">
     <Window.Resources>
@@ -28,6 +29,113 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,0,12" />
         </Style>
+        <Style x:Key="FolderPickerButton" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,2" />
+            <Setter Property="Background" Value="#F0F9FF" />
+            <Setter Property="BorderBrush" Value="#7DD3FC" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#0369A1" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="FolderPickerBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="FolderPickerBorder" Property="Background" Value="#E0F2FE" />
+                                <Setter TargetName="FolderPickerBorder" Property="BorderBrush" Value="#38BDF8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="FolderPickerBorder" Property="Background" Value="#BAE6FD" />
+                                <Setter TargetName="FolderPickerBorder" Property="BorderBrush" Value="#0EA5E9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#94A3B8" />
+                                <Setter TargetName="FolderPickerBorder" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="FolderPickerBorder" Property="BorderBrush" Value="#E2E8F0" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <ItemsPanelTemplate x:Key="MesFieldPanel">
+            <UniformGrid Columns="3" />
+        </ItemsPanelTemplate>
+        <DataTemplate x:Key="MesPluginFieldTemplate">
+            <StackPanel Margin="0,0,14,12">
+                <TextBlock Style="{StaticResource Label}" Text="{Binding Label}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="96" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCheckbox}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsHongXinMesMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                    <Button Grid.Column="1" Content="浏览" Command="{Binding BrowseDirectoryCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource FolderPickerButton}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+                <CheckBox Content="&#x542F;&#x7528;" IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                    <CheckBox.Style>
+                        <Style TargetType="CheckBox">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCheckbox}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </CheckBox.Style>
+                </CheckBox>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHongXinMesMode}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <RadioButton Content="设备产能上传" GroupName="HongXinMesUploadMode" IsChecked="{Binding IsCapacityUploadMode, Mode=TwoWay}" Margin="0,0,18,0" />
+                    <RadioButton Content="设备单品过站" GroupName="HongXinMesUploadMode" IsChecked="{Binding IsSinglePieceStationMode, Mode=TwoWay}" />
+                </StackPanel>
+                <TextBlock Foreground="#94A3B8" FontSize="11" Text="{Binding HelpText}" TextWrapping="Wrap" Margin="0,4,0,0" />
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
 
     <DockPanel>
@@ -65,49 +173,45 @@
 
                         <ItemsControl ItemsSource="{Binding MesPluginFields}"
                                       Margin="0,16,0,0"
-                                      Visibility="{Binding HasMesPluginFields, Converter={StaticResource BoolToVisibility}}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Columns="3" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Margin="0,0,14,12">
-                                        <TextBlock Style="{StaticResource Label}" Text="{Binding Label}" />
-                                        <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                                            <TextBox.Style>
-                                                <Style TargetType="TextBox">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsCheckbox}" Value="True">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBox.Style>
-                                        </TextBox>
-                                        <CheckBox Content="&#x542F;&#x7528;"
-                                                  IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                                            <CheckBox.Style>
-                                                <Style TargetType="CheckBox">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsCheckbox}" Value="True">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </CheckBox.Style>
-                                        </CheckBox>
-                                        <TextBlock Foreground="#94A3B8"
-                                                   FontSize="11"
-                                                   Text="{Binding HelpText}"
-                                                   TextWrapping="Wrap"
-                                                   Margin="0,4,0,0" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                      Visibility="{Binding HasOtherMesPluginFields, Converter={StaticResource BoolToVisibility}}"
+                                      ItemsPanel="{StaticResource MesFieldPanel}"
+                                      ItemTemplate="{StaticResource MesPluginFieldTemplate}" />
+
+                        <StackPanel Margin="0,16,0,0"
+                                    Visibility="{Binding IsHongXinMesPlugin, Converter={StaticResource BoolToVisibility}}">
+                            <Border Background="#F8FCFF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="原 OA 系统" FontWeight="SemiBold" Foreground="#075985" Margin="0,0,0,10" />
+                                    <ItemsControl ItemsSource="{Binding OaMesPluginFields}" ItemsPanel="{StaticResource MesFieldPanel}" ItemTemplate="{StaticResource MesPluginFieldTemplate}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#F8FCFF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="公共 MES" FontWeight="SemiBold" Foreground="#075985" Margin="0,0,0,4" />
+                                    <TextBlock Text="接口模式、流程单开工和终端认证参数" Foreground="#64748B" FontSize="11" Margin="0,0,0,10" />
+                                    <ItemsControl ItemsSource="{Binding CommonMesPluginFields}" ItemsPanel="{StaticResource MesFieldPanel}" ItemTemplate="{StaticResource MesPluginFieldTemplate}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#F8FCFF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="设备产能上传" FontWeight="SemiBold" Foreground="#075985" Margin="0,0,0,10" />
+                                    <ItemsControl ItemsSource="{Binding CapacityMesPluginFields}" ItemsPanel="{StaticResource MesFieldPanel}" ItemTemplate="{StaticResource MesPluginFieldTemplate}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#F8FCFF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="设备单品过站" FontWeight="SemiBold" Foreground="#075985" Margin="0,0,0,10" />
+                                    <ItemsControl ItemsSource="{Binding StationMesPluginFields}" ItemsPanel="{StaticResource MesFieldPanel}" ItemTemplate="{StaticResource MesPluginFieldTemplate}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#F8FCFF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="分类映射" FontWeight="SemiBold" Foreground="#075985" Margin="0,0,0,4" />
+                                    <TextBlock Text="测试分类对应的 MES 特性代号和不良代号" Foreground="#64748B" FontSize="11" Margin="0,0,0,10" />
+                                    <ItemsControl ItemsSource="{Binding MappingMesPluginFields}" ItemsPanel="{StaticResource MesFieldPanel}" ItemTemplate="{StaticResource MesPluginFieldTemplate}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -146,7 +250,12 @@
                                 <DataTemplate>
                                     <StackPanel Margin="0,0,14,12">
                                         <TextBlock Style="{StaticResource Label}" Text="{Binding Label}" />
-                                        <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="96" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0">
                                             <TextBox.Style>
                                                 <Style TargetType="TextBox">
                                                     <Style.Triggers>
@@ -156,7 +265,20 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBox.Style>
-                                        </TextBox>
+                                            </TextBox>
+                                            <Button Grid.Column="1" Content="浏览" Command="{Binding BrowseDirectoryCommand}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource FolderPickerButton}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsDirectory}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
                                         <CheckBox Content="&#x542F;&#x7528;"
                                                   IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                                             <CheckBox.Style>

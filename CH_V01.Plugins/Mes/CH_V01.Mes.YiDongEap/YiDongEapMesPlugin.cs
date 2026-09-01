@@ -110,6 +110,14 @@ public sealed class YiDongEapMesPlugin : IMesPlugin
             return validation;
         }
 
+        // 不扫码模式没有可供 EAP 过站的真实 SN。此时仅上报治具使用次数，
+        // 且不调用 TIMS_LOTCARD_CARRIER_SN_STATION 过站接口。
+        if (IsYes(options.Get("NoBarcodeMode", "N")))
+        {
+            var fixtureValidation = ValidateFixtureCountOptions(options);
+            return fixtureValidation ?? await UploadFixtureCountAsync(options, cancellationToken);
+        }
+
         var status = IsPass(request.Result) ? "OK" : "NG";
         var payload = new
         {
@@ -126,24 +134,7 @@ public sealed class YiDongEapMesPlugin : IMesPlugin
             return stationResult;
         }
 
-        var countPayload = new
-        {
-            Header = CreateHeader(options, "TIMS_RECEIVE_MOLD_FIXTRUE_COUNT"),
-            Body = new
-            {
-                data = new[]
-                {
-                    new
-                    {
-                        EQUIPCODE = options.Get("EquipmentCode"),
-                        EQUIPMENT_NO = options.Get("FixtureNo", options.Get("Tooling")),
-                        TEST_COUNT = options.Get("FixtureCount", "1")
-                    }
-                }
-            }
-        };
-
-        var countResult = await PostAsync(options, countPayload, "奕东 EAP 治具累计次数", cancellationToken);
+        var countResult = await UploadFixtureCountAsync(options, cancellationToken);
         return countResult.IsSuccess
             ? MesResult.Success($"{stationResult.Message}；{countResult.Message}", rawResponse: stationResult.RawResponse)
             : MesResult.Success($"{stationResult.Message}；治具计数未上报：{countResult.Message}", "PARTIAL", stationResult.RawResponse, countResult.Diagnostics);
@@ -311,6 +302,35 @@ public sealed class YiDongEapMesPlugin : IMesPlugin
         }
 
         return null;
+    }
+
+    private static MesResult? ValidateFixtureCountOptions(MesPluginOptions options)
+    {
+        return string.IsNullOrWhiteSpace(options.Get("FixtureNo", options.Get("Tooling")))
+            ? MesResult.Fail("奕东 EAP 治具信息上传需要配置 FixtureNo（或基础治具编号）")
+            : null;
+    }
+
+    private static Task<MesResult> UploadFixtureCountAsync(MesPluginOptions options, CancellationToken cancellationToken)
+    {
+        var countPayload = new
+        {
+            Header = CreateHeader(options, "TIMS_RECEIVE_MOLD_FIXTRUE_COUNT"),
+            Body = new
+            {
+                data = new[]
+                {
+                    new
+                    {
+                        EQUIPCODE = options.Get("EquipmentCode"),
+                        EQUIPMENT_NO = options.Get("FixtureNo", options.Get("Tooling")),
+                        TEST_COUNT = options.Get("FixtureCount", "1")
+                    }
+                }
+            }
+        };
+
+        return PostAsync(options, countPayload, "奕东 EAP 治具累计次数", cancellationToken);
     }
 
     private static string BuildEndpoint(MesPluginOptions options)

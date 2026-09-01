@@ -82,14 +82,18 @@ public sealed class DefaultIctProtocolAdapter : ITestProtocolAdapter
                 continue;
             }
 
-            var value = parts.Length >= 4 ? parts[2] : parts[1];
+            var value = (parts.Length >= 4 ? parts[2] : parts[1]).TrimEnd('^').Trim();
             var result = parts.Length >= 4 ? parts[3] : parts[2];
             var pointA = string.Empty;
             var pointB = string.Empty;
 
             if (parts.Length >= 4)
             {
-                (pointA, pointB) = ParsePointPair(parts[1]);
+                (pointA, pointB, value) = ParseShortDetails(parts[1], value);
+            }
+            else if (parts[1].Contains('^') || IsPointResistanceDetail(parts[1]))
+            {
+                (pointA, pointB, value) = ParseShortDetails(parts[1], value);
             }
             else if (parts[1].Contains(':'))
             {
@@ -122,5 +126,39 @@ public sealed class DefaultIctProtocolAdapter : ITestProtocolAdapter
         var normalized = (value ?? string.Empty).Trim().Trim('(', ')');
         var points = normalized.Split('-', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         return (points.ElementAtOrDefault(0) ?? string.Empty, points.ElementAtOrDefault(1) ?? string.Empty);
+    }
+
+    private static bool IsPointResistanceDetail(string value)
+    {
+        return (value ?? string.Empty).Split('-', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Length == 3;
+    }
+
+    private static (string PointA, string PointB, string TestValue) ParseShortDetails(string? pointAndValue, string fallbackValue)
+    {
+        var details = (pointAndValue ?? string.Empty)
+            .Split('^', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (details.Length == 0)
+        {
+            return (string.Empty, string.Empty, fallbackValue);
+        }
+
+        var pointAs = new List<string>();
+        var pointBs = new List<string>();
+        var values = new List<string>();
+        foreach (var detail in details)
+        {
+            var parts = detail.Split('-', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 3)
+            {
+                var fallbackPoints = ParsePointPair(pointAndValue ?? string.Empty);
+                return (fallbackPoints.PointA, fallbackPoints.PointB, fallbackValue);
+            }
+
+            pointAs.Add(parts[0]);
+            pointBs.Add(parts[1]);
+            values.Add(parts[2]);
+        }
+
+        return (string.Join('；', pointAs), string.Join('；', pointBs), string.Join('；', values));
     }
 }

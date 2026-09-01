@@ -4,6 +4,7 @@
         Title="数据分析"
         Width="920"
         Height="620"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="#EAF7FF">
     <DockPanel>

@@ -80,7 +80,11 @@ public sealed class MesRuntimeService
         }, cancellationToken);
     }
 
-    public async Task<MesResult> UploadResultAsync(AppConfiguration configuration, TestFlowSnapshot snapshot, CancellationToken cancellationToken = default)
+    public async Task<MesResult> UploadResultAsync(
+        AppConfiguration configuration,
+        TestFlowSnapshot snapshot,
+        IReadOnlyList<MesUploadFile>? files = null,
+        CancellationToken cancellationToken = default)
     {
         var plugin = GetSelectedPlugin(configuration);
         if (plugin is null)
@@ -102,7 +106,11 @@ public sealed class MesRuntimeService
             ProdNo = configuration.Mes.ProdNo,
             StationNo = GetStationNo(configuration),
             Result = snapshot.IsPass == true ? "PASS" : "FAIL",
-            Remark = snapshot.Message,
+            // 昆山嘉联益 CareerRule 接口不应接收软件内部中文状态文案（例如“测试结束：FAIL”）。
+            // 详细不良信息已包含在 TestData 中，故专用模式下保持 Defect 为空。
+            Remark = configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration
+                ? string.Empty
+                : snapshot.Message,
             UserNo = configuration.Mes.UserNo,
             PackNo = configuration.Mes.PackNo,
             Retest = GetMesOption(configuration, "Retest", string.Empty),
@@ -117,7 +125,8 @@ public sealed class MesRuntimeService
                 Result = item.Result,
                 UpperLimit = item.UpperLimit,
                 LowerLimit = item.LowerLimit
-            }).ToList()
+            }).ToList(),
+            Files = files ?? Array.Empty<MesUploadFile>()
         };
 
         CleanupExpiredUploads();
@@ -169,7 +178,10 @@ public sealed class MesRuntimeService
             ["ProductName"] = configuration.Identity.ProductName,
             ["Program"] = configuration.Identity.ProductName,
             ["TestType"] = configuration.Identity.TestType,
-            ["IpAddress"] = configuration.Identity.MachineNo
+            ["IpAddress"] = configuration.Identity.MachineNo,
+            // 不扫码模式由奕东 EAP 插件识别：只上报治具累计信息，不能将软件生成的
+            // NOSCAN 虚拟条码发送到 SN 过站接口。
+            ["NoBarcodeMode"] = configuration.User.NoScanMode ? "Y" : "N"
         };
 
         foreach (var item in configuration.Mes.PluginOptions)

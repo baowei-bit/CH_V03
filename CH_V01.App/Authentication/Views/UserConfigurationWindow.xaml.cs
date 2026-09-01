@@ -21,7 +21,7 @@ public partial class UserConfigurationWindow : Window
 
         var prompt = new Window
         {
-            Title = "测试片模式验证",
+            Title = "生产模式验证",
             Owner = this,
             Width = 340,
             Height = 165,
@@ -30,7 +30,7 @@ public partial class UserConfigurationWindow : Window
             Content = new StackPanel { Margin = new Thickness(18) }
         };
         var panel = (StackPanel)prompt.Content;
-        panel.Children.Add(new TextBlock { Text = "切换到测试片模式请输入密码：" });
+        panel.Children.Add(new TextBlock { Text = "切换到生产模式请输入密码：" });
         var passwordBox = new PasswordBox { Margin = new Thickness(0, 8, 0, 12) };
         panel.Children.Add(passwordBox);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
@@ -49,7 +49,7 @@ public partial class UserConfigurationWindow : Window
         viewModel.IsStandardPieceMode = true;
         if (prompt.DialogResult == true)
         {
-            MessageBox.Show(this, "密码错误，已保留标准片模式。", "测试片模式验证", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "密码错误，已保留标准片模式。", "生产模式验证", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 }

@@ -24,6 +24,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     private const string SamplePassPayload = "Test1,5.000,OK;Test2,9.983,OK;Test3,0x38,OK;3;end";
     private const string SampleFailPayload = "Test1,5.000,OK;Test2,12.600,NG;Test3,0x38,OK;3;end";
     private const int ScannerReceiveDebounceMilliseconds = 120;
+    private const int TestItemRequestMaxAttempts = 3;
+    private const int TestItemRequestRetryDelayMilliseconds = 1000;
+    private const int JiaLianYiMesUploadTimeoutSeconds = 8;
     private static readonly System.Text.RegularExpressions.Regex LowerMachineFrameStartPattern = new(
         @"(?<![A-Za-z0-9])(?:Item1|Test1)\s*,",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
@@ -55,6 +58,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _mesState = "未启用";
     private string _testState = "WAIT";
     private string _currentBarcode = string.Empty;
+    private string _lastTestStartedBarcode = string.Empty;
     private string _lastFailItem = string.Empty;
     private string _popupMessage = string.Empty;
     private string _testTime = "0.00S";
@@ -66,15 +70,27 @@ public sealed class MainWindowViewModel : ViewModelBase
     private int _failCount;
     private int _currentConsecutiveNg;
     private string _scannerReceiveBuffer = string.Empty;
-    private string _lastHandledScannerBarcode = string.Empty;
     private string _lowerMachineReceiveBuffer = string.Empty;
     private bool _waitingForItemHeader;
+    private bool _awaitingLowerMachineRestartAfterReset;
+    private bool _startTestAfterItemHeader;
+    private bool _discardLowerMachineDataUntilNextStartSignal;
     private ScanAheadStatus _scanAheadStatus;
     private CancellationTokenSource? _scannerReceiveDebounceCts;
+    private CancellationTokenSource? _scannerWaitTimeoutCts;
     private CancellationTokenSource? _lowerMachinePayloadTimeoutCts;
+    private CancellationTokenSource? _testItemRequestRetryCts;
+    private bool _ignoreScannerDataUntilNextStartSignal;
     private readonly Queue<PopupNotification> _popupQueue = new();
     private PopupNotification? _activePopup;
     private TestFlowSnapshot? _pendingJlyRetestFailure;
+    private DateTime? _lowerMachineStartSignalTime;
+    private readonly Timer _jiaLianYiModeTimer;
+    private string _lastJiaLianYiAutoStandardSwitch = string.Empty;
+    private readonly SemaphoreSlim _jiaLianYiMesUploadGate = new(1, 1);
+    private readonly object _jiaLianYiMesUploadSync = new();
+    private int _pendingJiaLianYiMesUploadCount;
+    private TaskCompletionSource? _jiaLianYiMesUploadCompletion;
 
     public MainWindowViewModel(
         ConfigurationStore configurationStore,
@@ -100,13 +116,20 @@ public sealed class MainWindowViewModel : ViewModelBase
         _projectProfiles = projectProfiles;
         _uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
         _configuration = _configurationStore.Load();
+        var appliedJiaLianYiDefaults = ApplyKunshanJiaLianYiDedicatedDefaults(_configuration);
+        var startedInJiaLianYiProductionMode = ApplyJiaLianYiStartupProductionMode(_configuration);
         NormalizeScanMode(_configuration.User);
+        if (appliedJiaLianYiDefaults || startedInJiaLianYiProductionMode)
+        {
+            _configurationStore.Save(_configuration);
+        }
 
         OpenBasicConfigurationCommand = new RelayCommand(OpenBasicConfiguration);
         OpenCommunicationConfigurationCommand = new RelayCommand(OpenCommunicationConfiguration);
         OpenMesConfigurationCommand = new RelayCommand(OpenMesConfiguration);
         OpenMesDebugToolCommand = new RelayCommand(OpenMesDebugTool);
         OpenPluginConfigurationCommand = new RelayCommand(OpenPluginConfiguration);
+        OpenKunshanJiaLianYiConfigurationCommand = new RelayCommand(OpenKunshanJiaLianYiConfiguration);
         OpenTestItemConfigurationCommand = new RelayCommand(OpenTestItemConfiguration);
         ImportProjectProfileCommand = new RelayCommand(ImportProjectProfile);
         OpenUserConfigurationCommand = new RelayCommand(OpenUserConfiguration);
@@ -118,6 +141,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         TestScannerCommand = new AsyncRelayCommand(TestScannerAsync);
         TestLowerMachineCommand = new AsyncRelayCommand(TestLowerMachineAsync);
         ToggleOnlineModeCommand = new AsyncRelayCommand(ToggleOnlineModeAsync);
+        SelectStandardPieceModeCommand = new RelayCommand(() => SelectJiaLianYiRunMode(JiaLianYiRunMode.StandardPiece));
+        SelectTestPieceModeCommand = new RelayCommand(() => SelectJiaLianYiRunMode(JiaLianYiRunMode.TestPiece));
+        SelectDebugModeCommand = new RelayCommand(() => SelectJiaLianYiRunMode(JiaLianYiRunMode.Debug));
         ToggleLogVisibilityCommand = new RelayCommand(ToggleLogVisibility);
         ToggleAdminToolsCommand = new RelayCommand(ToggleAdminTools);
         ClearYieldCommand = new RelayCommand(ClearYield);
@@ -139,10 +165,15 @@ public sealed class MainWindowViewModel : ViewModelBase
         RestoreDailyYieldStatistics();
         ApplySnapshot(_testFlowService.LoadConfiguredTestItems(_configuration.TestItems.Items), countYield: false);
         AddLog("系统启动，配置已加载");
+        if (startedInJiaLianYiProductionMode)
+        {
+            AddLog("昆山嘉联益启动后已自动进入生产模式");
+        }
         AddLog($"协议适配器已加载：{_protocolAdapter.Name}({_protocolAdapter.Id})");
         AddLog(BuildProjectProfileLog());
         AddLog(BuildMesPluginLog());
         AddLog(BuildExportPluginLog());
+        _jiaLianYiModeTimer = new Timer(_ => PostToUi(CheckJiaLianYiAutoStandardMode), null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
         PostToUi(() => _ = AutoConnectConfiguredDevicesAsync());
     }
 
@@ -151,6 +182,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ICommand OpenMesConfigurationCommand { get; }
     public ICommand OpenMesDebugToolCommand { get; }
     public ICommand OpenPluginConfigurationCommand { get; }
+    public ICommand OpenKunshanJiaLianYiConfigurationCommand { get; }
     public ICommand OpenTestItemConfigurationCommand { get; }
     public ICommand ImportProjectProfileCommand { get; }
     public ICommand OpenUserConfigurationCommand { get; }
@@ -162,6 +194,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ICommand TestScannerCommand { get; }
     public ICommand TestLowerMachineCommand { get; }
     public ICommand ToggleOnlineModeCommand { get; }
+    public ICommand SelectStandardPieceModeCommand { get; }
+    public ICommand SelectTestPieceModeCommand { get; }
+    public ICommand SelectDebugModeCommand { get; }
     public ICommand ToggleLogVisibilityCommand { get; }
     public ICommand ToggleAdminToolsCommand { get; }
     public ICommand ClearYieldCommand { get; }
@@ -188,15 +223,31 @@ public sealed class MainWindowViewModel : ViewModelBase
     public string TestProgram => _configuration.Identity.TestProgram;
     public string StationNo
     {
-        get => _configuration.Identity.StationNo;
+        get => IsKunshanJiaLianYiDedicatedConfiguration
+            ? _configuration.Mes.PluginOptions.GetValueOrDefault("Station", string.Empty)
+            : _configuration.Identity.StationNo;
         set
         {
-            if (string.Equals(_configuration.Identity.StationNo, value, StringComparison.Ordinal))
+            value ??= string.Empty;
+            if (string.Equals(StationNo, value, StringComparison.Ordinal))
             {
                 return;
             }
 
-            _configuration.Identity.StationNo = value ?? string.Empty;
+            if (IsKunshanJiaLianYiDedicatedConfiguration)
+            {
+                _configuration.Mes.PluginOptions["Station"] = value;
+                if (!_configuration.Export.PluginOptions.TryGetValue("JiaLianYi.Export", out var exportOptions))
+                {
+                    exportOptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    _configuration.Export.PluginOptions["JiaLianYi.Export"] = exportOptions;
+                }
+                exportOptions["Station"] = value;
+            }
+            else
+            {
+                _configuration.Identity.StationNo = value;
+            }
             Save();
         }
     }
@@ -231,11 +282,30 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool CanOpenCommunicationConfiguration => CanManageSystem || CanConfigureOperatorSettings;
     public bool CanManageTestItems => _authenticationService.CurrentSession.CanManageTestItems;
     public bool CanManageUsers => _authenticationService.CurrentSession.CanManageUsers;
+    public bool CanManageUsersInStandardMode => CanManageUsers && IsStandardConfigurationMode;
     public bool CanImportProjectProfile => _authenticationService.CurrentSession.CanImportProjectProfile;
     public bool CanViewAnalysis => _authenticationService.CurrentSession.CanViewAnalysis;
+    public bool CanViewAnalysisInStandardMode => CanViewAnalysis && IsStandardConfigurationMode;
     public bool CanViewHelp => _authenticationService.CurrentSession.IsAuthenticated
         && _authenticationService.CurrentSession.Role != UserRole.Operator;
+    public bool CanViewHelpInStandardMode => CanViewHelp && IsStandardConfigurationMode;
     public bool CanUseAdminTools => _authenticationService.CurrentSession.Role == UserRole.Administrator;
+    public bool IsKunshanJiaLianYiDedicatedConfiguration => _configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration;
+    public bool IsStandardConfigurationMode => !IsKunshanJiaLianYiDedicatedConfiguration;
+    public bool CanSelectJiaLianYiRunMode => IsKunshanJiaLianYiDedicatedConfiguration
+        && _configuration.Mes.Enabled
+        && _configuration.Mes.OnlineMode;
+    public bool IsStandardPieceMode => _configuration.User.Jly.RunMode == JiaLianYiRunMode.StandardPiece;
+    public bool IsTestPieceMode => _configuration.User.Jly.RunMode == JiaLianYiRunMode.TestPiece;
+    public bool IsDebugMode => _configuration.User.Jly.RunMode == JiaLianYiRunMode.Debug;
+    public string JiaLianYiRunModeText => GetJiaLianYiRunModeName(_configuration.User.Jly.RunMode);
+    public string JiaLianYiRunModeBackground => _configuration.User.Jly.RunMode switch
+    {
+        JiaLianYiRunMode.TestPiece => "#16A34A",
+        JiaLianYiRunMode.Debug => "#DC2626",
+        _ => "#FACC15"
+    };
+    public string JiaLianYiRunModeForeground => IsStandardPieceMode ? "#1F2937" : "White";
     public int TotalCount => PassCount + FailCount;
     public string PassFailText => $"{PassCount} / {FailCount}";
     public double YieldRate => TotalCount == 0 ? 0 : Math.Round(PassCount * 100.0 / TotalCount, 2);
@@ -300,6 +370,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     }
 
     public bool IsManualScanMode => _configuration.User.ManualScanMode;
+
+    public bool IsUsbPosHidScanner =>
+        _configuration.Communication.Scanner.ConnectionType == ConnectionType.UsbPosHid;
 
     private bool IsScanAheadMode => IsManualScanMode && _configuration.User.ScanAheadEnabled;
 
@@ -394,13 +467,25 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
 
         var editable = ConfigurationStore.Clone(_configuration);
-        if (!_configurationDialogService.ShowBasicConfiguration(editable, CanManageSystem))
+        var saved = IsKunshanJiaLianYiDedicatedConfiguration
+            ? _configurationDialogService.ShowKunshanJiaLianYiBasicConfiguration(editable, new KunshanJiaLianYiRuntimeActions
+            {
+                ToggleScanner = ToggleScannerConnectionAsync,
+                ToggleLowerMachine = ToggleLowerMachineConnectionAsync,
+                ToggleMes = ToggleOnlineModeAsync,
+                ScannerState = () => ScannerState,
+                LowerMachineState = () => LowerMachineState,
+                MesState = () => MesState,
+                IsMesOnline = () => _configuration.Mes.OnlineMode
+            })
+            : _configurationDialogService.ShowBasicConfiguration(editable, CanManageSystem);
+        if (!saved)
         {
             StatusMessage = "已取消基础配置";
             return;
         }
 
-        if (CanConfigureOperatorSettings)
+        if (CanConfigureOperatorSettings && !IsKunshanJiaLianYiDedicatedConfiguration)
         {
             // 即使未来基础配置窗口新增控件，操作员保存时也只能覆盖保存路径。
             var output = editable.Output;
@@ -411,6 +496,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         editable.Communication.LowerMachinePayloadTimeoutSeconds = Math.Max(
             1,
             editable.Communication.LowerMachinePayloadTimeoutSeconds);
+        editable.Communication.ScannerWaitTimeoutSeconds = Math.Max(
+            1,
+            editable.Communication.ScannerWaitTimeoutSeconds);
         _configuration = editable;
         Save();
         RefreshDerivedState();
@@ -432,6 +520,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        editable.Communication.ScannerWaitTimeoutSeconds = Math.Max(
+            1,
+            editable.Communication.ScannerWaitTimeoutSeconds);
         _configuration = editable;
         Save();
         RefreshDerivedState();
@@ -491,6 +582,28 @@ public sealed class MainWindowViewModel : ViewModelBase
         AddLog("插件配置已更新");
     }
 
+    private void OpenKunshanJiaLianYiConfiguration()
+    {
+        if (!CanManageSystem)
+        {
+            _configurationDialogService.ShowAlert("权限不足", "当前账号不能修改昆山嘉联益配置，请切换工程师或管理员账号。");
+            return;
+        }
+
+        var editable = ConfigurationStore.Clone(_configuration);
+        if (!_configurationDialogService.ShowKunshanJiaLianYiConfiguration(editable))
+        {
+            StatusMessage = "已取消昆山嘉联益配置";
+            return;
+        }
+
+        ApplyKunshanJiaLianYiDedicatedDefaults(editable);
+        _configuration = editable;
+        Save();
+        RefreshDerivedState();
+        AddLog("昆山嘉联益配置已更新");
+    }
+
     private void OpenTestItemConfiguration()
     {
         if (!CanManageTestItems)
@@ -542,6 +655,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         imported.User.EnsureDefaultAccounts();
         imported.TestItems.EnsureDefaultItems();
+        ApplyKunshanJiaLianYiDedicatedDefaults(imported);
 
         _configuration = imported;
         NormalizeScanMode(_configuration.User);
@@ -560,21 +674,40 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
 
         var editable = ConfigurationStore.Clone(_configuration.User);
+        if (IsKunshanJiaLianYiDedicatedConfiguration)
+        {
+            editable.SaveDailyQuantity = true;
+        }
+
         var canManageAccounts = _authenticationService.CurrentSession.Role == UserRole.Administrator;
-        if (!_configurationDialogService.ShowUserConfiguration(editable, _configuration.Compatibility, canManageAccounts))
+        var saved = IsKunshanJiaLianYiDedicatedConfiguration
+            ? _configurationDialogService.ShowKunshanJiaLianYiUserConfiguration(editable, _configuration.Compatibility)
+            : _configurationDialogService.ShowUserConfiguration(editable, _configuration.Compatibility, canManageAccounts);
+        if (!saved)
         {
             StatusMessage = "已取消用户配置";
             return;
         }
 
-        if (!canManageAccounts)
+        if (!canManageAccounts || IsKunshanJiaLianYiDedicatedConfiguration)
         {
             editable.Accounts = ConfigurationStore.Clone(_configuration.User.Accounts);
         }
 
         var wasSavingDailyQuantity = _configuration.User.SaveDailyQuantity;
+        if (IsKunshanJiaLianYiDedicatedConfiguration)
+        {
+            editable.SaveDailyQuantity = true;
+        }
+
+        var switchedToManualScan = !_configuration.User.ManualScanMode && editable.ManualScanMode;
         _configuration.User = editable;
         NormalizeScanMode(_configuration.User);
+        if (switchedToManualScan)
+        {
+            _configuration.Communication.Scanner.ConnectionType = ConnectionType.UsbPosHid;
+            AddLog("已切换手动扫码，扫码枪通讯方式已自动设为 USB POS HID");
+        }
         _scanAheadStatus = ScanAheadStatus.None;
         if (_configuration.User.SaveDailyQuantity)
         {
@@ -586,6 +719,10 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         Save();
         RefreshDerivedState();
+        if (switchedToManualScan)
+        {
+            _ = ReconnectScannerAfterCommunicationModeChangeAsync();
+        }
         AddLog("用户配置已更新");
     }
 
@@ -598,7 +735,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         if (_configuration.DefaultOperatorLogin)
         {
-            if (!_authenticationService.LoginAsDefaultOperator(_configuration.User, out var message))
+            var autoLoginUserName = string.IsNullOrWhiteSpace(_configuration.AutoLoginUserName)
+                ? "operator"
+                : _configuration.AutoLoginUserName;
+            if (!_authenticationService.LoginAsConfiguredUser(_configuration.User, autoLoginUserName, out var message))
             {
                 _configurationDialogService.ShowAlert("自动登录失败", message);
                 return false;
@@ -611,6 +751,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         if (_configurationDialogService.ShowLogin(_authenticationService, _configuration.User))
         {
+            if (string.Equals(
+                _authenticationService.CurrentSession.UserName,
+                _configuration.AutoLoginUserName,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                _configuration.DefaultOperatorLogin = true;
+            }
+
             Save();
             AddLog($"用户登录：{LoginDisplay}");
             RaiseSessionProperties();
@@ -721,13 +869,16 @@ public sealed class MainWindowViewModel : ViewModelBase
         try
         {
             ResetLowerMachineReceiveBuffer();
+            CancelTestItemRequestRetry();
             _waitingForItemHeader = true;
+            _startTestAfterItemHeader = false;
+            _discardLowerMachineDataUntilNextStartSignal = false;
             _lowerMachineConnection = _deviceConnectionFactory.Create(_configuration.Communication.LowerMachine);
             _lowerMachineConnection.DataReceived += LowerMachineConnection_DataReceived;
             await _lowerMachineConnection.OpenAsync();
             LowerMachineState = _configuration.Communication.LowerMachine.ConnectionType == ConnectionType.Disabled ? "已禁用" : "已连接";
             AddLog($"下位机连接完成：{LowerMachineSummary}");
-            await RequestTestItemsAsync();
+            StartTestItemRequestRetry(waitForAutomaticHeader: false);
             return true;
         }
         catch (Exception ex)
@@ -748,8 +899,6 @@ public sealed class MainWindowViewModel : ViewModelBase
     private async Task DisconnectDevicesAsync()
     {
         ResetScannerReceiveBuffer();
-        _lastHandledScannerBarcode = string.Empty;
-
         await DisconnectScannerAsync();
         await DisconnectLowerMachineAsync();
 
@@ -760,8 +909,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private async Task DisconnectScannerAsync()
     {
         ResetScannerReceiveBuffer();
-        _lastHandledScannerBarcode = string.Empty;
-
+        CancelScannerWaitTimeout();
         if (_scannerConnection is not null)
         {
             _scannerConnection.DataReceived -= ScannerConnection_DataReceived;
@@ -770,9 +918,29 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private async Task ReconnectScannerAfterCommunicationModeChangeAsync()
+    {
+        if (_scannerConnection?.IsOpen != true)
+        {
+            return;
+        }
+
+        await DisconnectScannerAsync();
+        RefreshDerivedState();
+        AddLog("扫码枪通讯方式已切换为 USB POS HID，正在重新连接");
+        await ConnectScannerAsync();
+        RefreshDerivedState();
+    }
+
     private async Task DisconnectLowerMachineAsync()
     {
         ResetLowerMachineReceiveBuffer();
+        CancelScannerWaitTimeout();
+        CancelTestItemRequestRetry();
+        _waitingForItemHeader = false;
+        _awaitingLowerMachineRestartAfterReset = false;
+        _startTestAfterItemHeader = false;
+        _discardLowerMachineDataUntilNextStartSignal = false;
         _scanAheadStatus = ScanAheadStatus.None;
         if (_lowerMachineConnection is not null)
         {
@@ -803,6 +971,13 @@ public sealed class MainWindowViewModel : ViewModelBase
         PostToUi(() => BufferScannerText(e.Text));
     }
 
+    public Task AcceptUsbPosHidKeyboardInputAsync(string text)
+    {
+        return IsUsbPosHidScanner
+            ? HandleScannerTextAsync(text)
+            : Task.CompletedTask;
+    }
+
     private void LowerMachineConnection_DataReceived(object? sender, DeviceDataReceivedEventArgs e)
     {
         PostToUi(() => HandleLowerMachineText(e.Text));
@@ -817,11 +992,19 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        CancelScannerWaitTimeout();
         AddLog($"RecScanner:{barcode}");
         await StopScannerAsync();
-        if (IsRepeatedScannerBarcode(barcode))
+
+        await WaitForJiaLianYiMesUploadAsync();
+
+        if (!_configuration.Identity.AllowContinuousRepeatTest
+            && string.Equals(barcode, _lastTestStartedBarcode, StringComparison.OrdinalIgnoreCase))
         {
-            AddLog($"重复扫码已忽略：{barcode}");
+            const string message = "条码与上一笔测试相同，未启用连续重复测试，已阻止本次测试";
+            StatusMessage = message;
+            AddLog($"{message}：{barcode}");
+            await ShowRuntimePopupAsync(message);
             return;
         }
 
@@ -830,7 +1013,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         if (snapshot.State == TestFlowState.Ready)
         {
-            _lastHandledScannerBarcode = barcode;
             var compatibilityError = ApplyCompatibilityBeforeTest(barcode);
             if (!string.IsNullOrWhiteSpace(compatibilityError))
             {
@@ -840,7 +1022,17 @@ public sealed class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            if (_configuration.Mes.Enabled && _configuration.Mes.OnlineMode)
+            if (IsJiaLianYiStandardPieceMode
+                && (!_configuration.Mes.Enabled || !_configuration.Mes.OnlineMode))
+            {
+                const string message = "当前测试不是标准片！";
+                AddLog($"{message} MES 未在线，无法执行标准片卡关");
+                await ShowRuntimePopupAsync(message);
+                await RecordScanFailureAsync();
+                return;
+            }
+
+            if (_configuration.Mes.Enabled && _configuration.Mes.OnlineMode && !ShouldSkipMesPreCheck)
             {
                 var mesResult = await _mesRuntimeService.CheckBeforeTestAsync(_configuration, barcode);
                 AddLog(mesResult.IsSuccess ? $"MES卡关通过：{mesResult.Message}" : $"MES卡关失败：{mesResult.Message}");
@@ -848,12 +1040,26 @@ public sealed class MainWindowViewModel : ViewModelBase
                 {
                     AddLog(mesResult.Diagnostics);
                 }
+                ApplyJiaLianYiModeFromMesResponse(mesResult, "MES 卡关");
+                if (IsJiaLianYiStandardPieceMode && !IsJiaLianYiStandardPiecePreCheckPassed(mesResult))
+                {
+                    const string message = "当前测试不是标准片！";
+                    AddLog($"{message} MES 卡关返回：{mesResult.Message}");
+                    await ShowRuntimePopupAsync(message);
+                    await RecordScanFailureAsync();
+                    return;
+                }
+
                 if (!mesResult.IsSuccess)
                 {
                     await ShowRuntimePopupAsync($"MES卡关失败：{mesResult.Message}");
                     await RecordScanFailureAsync();
                     return;
                 }
+            }
+            else if (ShouldSkipMesPreCheck)
+            {
+                AddLog($"嘉联益{GetJiaLianYiRunModeName(_configuration.User.Jly.RunMode)}：已跳过 MES 卡关");
             }
 
             if (IsScanAheadMode)
@@ -875,6 +1081,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private void BufferScannerText(string text)
     {
+        if (_ignoreScannerDataUntilNextStartSignal)
+        {
+            AddLog("扫码超时后收到的条码已忽略，等待下位机新的 DM 信号");
+            ResetScannerReceiveBuffer();
+            return;
+        }
+
         var chunk = NormalizeIncomingText(text);
         if (string.IsNullOrWhiteSpace(chunk))
         {
@@ -982,19 +1195,6 @@ public sealed class MainWindowViewModel : ViewModelBase
         return text.Trim();
     }
 
-    private bool IsRepeatedScannerBarcode(string barcode)
-    {
-        barcode = NormalizeIncomingText(barcode);
-        if (string.IsNullOrWhiteSpace(barcode) || string.IsNullOrWhiteSpace(_lastHandledScannerBarcode))
-        {
-            return false;
-        }
-
-        return string.Equals(barcode, _lastHandledScannerBarcode, StringComparison.OrdinalIgnoreCase)
-            || _lastHandledScannerBarcode.Contains(barcode, StringComparison.OrdinalIgnoreCase)
-            || barcode.Contains(_lastHandledScannerBarcode, StringComparison.OrdinalIgnoreCase);
-    }
-
     private void ResetScannerReceiveBuffer()
     {
         _scannerReceiveBuffer = string.Empty;
@@ -1029,6 +1229,22 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private IEnumerable<string> CollectLowerMachinePayloads(string payload)
     {
+        if (_discardLowerMachineDataUntilNextStartSignal)
+        {
+            if (!_protocolAdapter.IsStartSignal(payload))
+            {
+                ResetLowerMachineReceiveBuffer();
+                AddLog("急停后收到的旧周期下位机数据已忽略，等待新的 DM 信号");
+                yield break;
+            }
+
+            _discardLowerMachineDataUntilNextStartSignal = false;
+            _waitingForItemHeader = false;
+            _ignoreScannerDataUntilNextStartSignal = false;
+            ResetLowerMachineReceiveBuffer();
+            AddLog("已收到新的 DM 信号，恢复接收本周期测试结果");
+        }
+
         if (IsStandaloneLowerMachineSignal(payload))
         {
             yield return payload;
@@ -1091,6 +1307,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 if (_waitingForItemHeader && _protocolAdapter.IsItemPayload(completePayload))
                 {
                     _waitingForItemHeader = false;
+                    CancelTestItemRequestRetry();
                     AddLog("已收到新的 Item1 表头，恢复接收本次测试数据");
                 }
 
@@ -1116,6 +1333,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         if (_protocolAdapter.IsStartSignal(payload))
         {
+            _lowerMachineStartSignalTime = DateTime.Now;
+            var requestHeaderAfterReset = _awaitingLowerMachineRestartAfterReset;
+            _awaitingLowerMachineRestartAfterReset = false;
+            if (requestHeaderAfterReset)
+            {
+                InitializeFlow();
+                _startTestAfterItemHeader = true;
+                StartTestItemRequestRetry(waitForAutomaticHeader: false);
+                AddLog("下位机复位后的 DM 已到达，正在请求 Item1 表头；收到表头后才会发送 DMOK 或启动测试");
+                return;
+            }
+
             if (IsScanAheadMode)
             {
                 if (_scanAheadStatus == ScanAheadStatus.Ok)
@@ -1144,6 +1373,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
             else
             {
+                StartScannerWaitTimeout();
                 _ = TriggerScannerAsync();
                 AddLog("下位机触发扫码，等待扫码枪返回条码");
             }
@@ -1164,6 +1394,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             SyncConfiguredTestItems(snapshot);
             ApplySnapshot(snapshot, countYield: false);
             AddLog("收到下位机测试项列表，已按协议适配器解析");
+            ContinueTestStartAfterItemHeader();
             return;
         }
 
@@ -1173,8 +1404,55 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void ContinueTestStartAfterItemHeader()
+    {
+        if (!_startTestAfterItemHeader)
+        {
+            return;
+        }
+
+        _startTestAfterItemHeader = false;
+        if (IsScanAheadMode)
+        {
+            if (_scanAheadStatus == ScanAheadStatus.Ok)
+            {
+                AddLog("复位后 Item1 表头已确认，检测到 SCANOK，准备发送 DMOK");
+                _ = SendLowerMachineOkAndStartTestAsync(CurrentBarcode);
+            }
+            else
+            {
+                AddLog("复位后 Item1 表头已确认，但未检测到 SCANOK，发送 DMNG");
+                _ = SendLowerMachineNgAsync();
+            }
+
+            return;
+        }
+
+        if (_configuration.User.NoScanMode)
+        {
+            AddLog("复位后 Item1 表头已确认，不扫码模式开始本次测试");
+            _ = StartNoScanAsync();
+        }
+        else if (IsManualScanMode)
+        {
+            AddLog("复位后 Item1 表头已确认，等待操作员录入条码或手动触发扫码枪");
+        }
+        else
+        {
+            StartScannerWaitTimeout();
+            _ = TriggerScannerAsync();
+            AddLog("复位后 Item1 表头已确认，触发扫码并等待扫码枪返回条码");
+        }
+    }
+
     private async Task TriggerScannerAsync()
     {
+        if (_configuration.Communication.Scanner.ConnectionType == ConnectionType.UsbPosHid)
+        {
+            AddLog("USB POS HID 模式等待操作员按扫码枪按钮，未发送触发命令");
+            return;
+        }
+
         if (!_configuration.Communication.ScannerTriggerEnabled)
         {
             AddLog("通讯配置未启用自动扫码触发，未发送扫码枪触发命令");
@@ -1200,6 +1478,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task StopScannerAsync()
     {
+        if (_configuration.Communication.Scanner.ConnectionType == ConnectionType.UsbPosHid)
+        {
+            return;
+        }
+
         var command = DecodeCommand(_configuration.Communication.ScannerStopCommand);
         if (string.IsNullOrEmpty(command) || _scannerConnection is null)
         {
@@ -1217,17 +1500,13 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private async Task RequestTestItemsAsync()
+    private async Task RequestTestItemsAsync(int attempt, CancellationToken cancellationToken)
     {
-        if (!_configuration.Communication.TestItemRequestEnabled)
-        {
-            return;
-        }
-
         if (_lowerMachineConnection is null
+            || !_lowerMachineConnection.IsOpen
             || _configuration.Communication.LowerMachine.ConnectionType == ConnectionType.Disabled)
         {
-            AddLog("下位机未连接，测试项请求命令已跳过");
+            AddLog($"下位机未连接，第 {attempt}/{TestItemRequestMaxAttempts} 次表头请求已跳过");
             return;
         }
 
@@ -1238,11 +1517,88 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await SendLowerMachineAsync(command);
-        AddLog($"sendLowerCom:{FormatCommandForLog(command)}");
+        await SendLowerMachineAsync(command, cancellationToken);
+        AddLog($"sendLowerCom:{FormatCommandForLog(command)}（表头请求 {attempt}/{TestItemRequestMaxAttempts}）");
     }
 
-    private async Task SendLowerMachineAsync(string data)
+    private void StartTestItemRequestRetry(bool waitForAutomaticHeader)
+    {
+        CancelTestItemRequestRetry();
+        if (!_waitingForItemHeader || !_configuration.Communication.TestItemRequestEnabled)
+        {
+            return;
+        }
+
+        var retryCts = new CancellationTokenSource();
+        _testItemRequestRetryCts = retryCts;
+        _ = RequestTestItemsUntilHeaderReceivedAsync(retryCts, waitForAutomaticHeader);
+    }
+
+    private async Task RequestTestItemsUntilHeaderReceivedAsync(
+        CancellationTokenSource retryCts,
+        bool waitForAutomaticHeader)
+    {
+        try
+        {
+            if (waitForAutomaticHeader)
+            {
+                await Task.Delay(TestItemRequestRetryDelayMilliseconds, retryCts.Token);
+            }
+
+            for (var attempt = 1; attempt <= TestItemRequestMaxAttempts; attempt++)
+            {
+                if (!ReferenceEquals(_testItemRequestRetryCts, retryCts) || !_waitingForItemHeader)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await RequestTestItemsAsync(attempt, retryCts.Token);
+                }
+                catch (OperationCanceledException) when (retryCts.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"第 {attempt}/{TestItemRequestMaxAttempts} 次表头请求发送失败：{ex.Message}");
+                }
+
+                await Task.Delay(TestItemRequestRetryDelayMilliseconds, retryCts.Token);
+            }
+
+            if (ReferenceEquals(_testItemRequestRetryCts, retryCts) && _waitingForItemHeader)
+            {
+                AddLog($"仍未收到 Item1 表头，已完成 {TestItemRequestMaxAttempts} 次请求；继续等待下位机表头，不接收残留 Test 数据");
+            }
+        }
+        catch (OperationCanceledException) when (retryCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            AddLog($"测试项表头请求失败：{ex.Message}");
+        }
+        finally
+        {
+            if (ReferenceEquals(_testItemRequestRetryCts, retryCts))
+            {
+                _testItemRequestRetryCts = null;
+            }
+
+            retryCts.Dispose();
+        }
+    }
+
+    private void CancelTestItemRequestRetry()
+    {
+        var retryCts = _testItemRequestRetryCts;
+        _testItemRequestRetryCts = null;
+        retryCts?.Cancel();
+    }
+
+    private async Task SendLowerMachineAsync(string data, CancellationToken cancellationToken = default)
     {
         if (_lowerMachineConnection is null)
         {
@@ -1250,7 +1606,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await _lowerMachineConnection.SendStringAsync(data);
+        await _lowerMachineConnection.SendStringAsync(data, cancellationToken);
     }
 
     private async Task RecordScanFailureAsync()
@@ -1279,6 +1635,8 @@ public sealed class MainWindowViewModel : ViewModelBase
             await SendLowerMachineNgAsync();
             return;
         }
+
+        _lastTestStartedBarcode = barcode;
 
         foreach (var command in GetLowerMachineOkCommands(barcode))
         {
@@ -1524,11 +1882,58 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void InitializeFlow()
     {
         ResetLowerMachineReceiveBuffer();
-        _lastHandledScannerBarcode = string.Empty;
+        CancelScannerWaitTimeout();
+        _ignoreScannerDataUntilNextStartSignal = false;
         _scanAheadStatus = ScanAheadStatus.None;
         var snapshot = _testFlowService.Initialize(TestFlowOptions.FromConfiguration(_configuration));
         ApplySnapshot(snapshot, countYield: false);
         AddLog(snapshot.Message);
+    }
+
+    private void StartScannerWaitTimeout()
+    {
+        CancelScannerWaitTimeout();
+        var timeoutCts = new CancellationTokenSource();
+        _scannerWaitTimeoutCts = timeoutCts;
+        _ = HandleScannerWaitTimeoutAsync(timeoutCts);
+    }
+
+    private async Task HandleScannerWaitTimeoutAsync(CancellationTokenSource timeoutCts)
+    {
+        try
+        {
+            var timeoutSeconds = Math.Max(1, _configuration.Communication.ScannerWaitTimeoutSeconds);
+            await Task.Delay(TimeSpan.FromSeconds(timeoutSeconds), timeoutCts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        PostToUi(() => _ = SendScannerTimeoutNgAsync(timeoutCts));
+    }
+
+    private async Task SendScannerTimeoutNgAsync(CancellationTokenSource timeoutCts)
+    {
+        if (!ReferenceEquals(_scannerWaitTimeoutCts, timeoutCts))
+        {
+            return;
+        }
+
+        _scannerWaitTimeoutCts = null;
+        timeoutCts.Dispose();
+        _ignoreScannerDataUntilNextStartSignal = true;
+        ResetScannerReceiveBuffer();
+        await SendLowerMachineNgAsync();
+        ApplySnapshot(_testFlowService.Initialize(TestFlowOptions.FromConfiguration(_configuration)), countYield: false);
+        AddLog($"扫码超时（{_configuration.Communication.ScannerWaitTimeoutSeconds} 秒），已发送 DMNG，等待下位机新的 DM 信号");
+    }
+
+    private void CancelScannerWaitTimeout()
+    {
+        _scannerWaitTimeoutCts?.Cancel();
+        _scannerWaitTimeoutCts?.Dispose();
+        _scannerWaitTimeoutCts = null;
     }
 
     private static void NormalizeScanMode(UserConfiguration configuration)
@@ -1551,6 +1956,43 @@ public sealed class MainWindowViewModel : ViewModelBase
         configuration.ScanAheadEnabled = false;
     }
 
+    private static bool ApplyKunshanJiaLianYiDedicatedDefaults(AppConfiguration configuration)
+    {
+        if (!configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration)
+        {
+            return false;
+        }
+
+        var changed = !configuration.Mes.Enabled
+            || !string.Equals(configuration.Mes.SelectedPlugin, "JiaLianYi.CareerRule", StringComparison.OrdinalIgnoreCase)
+            || configuration.Export.EnabledPluginIds.Count != 1
+            || !string.Equals(configuration.Export.EnabledPluginIds[0], "JiaLianYi.Export", StringComparison.OrdinalIgnoreCase)
+            || !configuration.Communication.AutoConnectScannerOnStartup
+            || !configuration.Communication.AutoConnectLowerMachineOnStartup
+            || !configuration.User.SaveDailyQuantity;
+        configuration.Mes.Enabled = true;
+        configuration.Mes.SelectedPlugin = "JiaLianYi.CareerRule";
+        configuration.Export.EnabledPluginIds = new List<string> { "JiaLianYi.Export" };
+        // 昆山嘉联益现场上位机启动后应直接连接扫码枪和下位机。
+        configuration.Communication.AutoConnectScannerOnStartup = true;
+        configuration.Communication.AutoConnectLowerMachineOnStartup = true;
+        // 嘉联益良率跨日期、跨重启持续累计，只由“清空良率”按钮归零。
+        configuration.User.SaveDailyQuantity = true;
+        return changed;
+    }
+
+    private static bool ApplyJiaLianYiStartupProductionMode(AppConfiguration configuration)
+    {
+        if (!configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration
+            || configuration.User.Jly.RunMode == JiaLianYiRunMode.TestPiece)
+        {
+            return false;
+        }
+
+        configuration.User.Jly.RunMode = JiaLianYiRunMode.TestPiece;
+        return true;
+    }
+
     private void ResetLowerMachineReceiveBuffer(string? message = null)
     {
         if (!string.IsNullOrEmpty(_lowerMachineReceiveBuffer) && !string.IsNullOrWhiteSpace(message))
@@ -1565,14 +2007,19 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void DiscardCurrentTestAfterLowerMachineReset()
     {
         ResetLowerMachineReceiveBuffer();
+        CancelScannerWaitTimeout();
+        _ignoreScannerDataUntilNextStartSignal = true;
         _waitingForItemHeader = true;
-        _lastHandledScannerBarcode = string.Empty;
+        _awaitingLowerMachineRestartAfterReset = true;
+        _startTestAfterItemHeader = false;
+        _discardLowerMachineDataUntilNextStartSignal = false;
         _scanAheadStatus = ScanAheadStatus.None;
         _pendingJlyRetestFailure = null;
+        _lowerMachineStartSignalTime = null;
 
         var snapshot = _testFlowService.Initialize(TestFlowOptions.FromConfiguration(_configuration));
         ApplySnapshot(snapshot, countYield: false);
-        AddLog("收到下位机 reset：当前测试数据已作废，不保存、不导出、不上传 MES；等待新的 Item1 表头");
+        AddLog("收到下位机 reset：当前测试数据已作废；等待下位机重新发送 DM 后再请求 Item1 表头");
     }
 
     private void StartLowerMachinePayloadTimeout()
@@ -1614,11 +2061,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 
             ResetLowerMachineReceiveBuffer();
             _waitingForItemHeader = true;
-            _lastHandledScannerBarcode = string.Empty;
+            _awaitingLowerMachineRestartAfterReset = false;
+            _startTestAfterItemHeader = false;
+            _discardLowerMachineDataUntilNextStartSignal = false;
             _scanAheadStatus = ScanAheadStatus.None;
             _pendingJlyRetestFailure = null;
+            _lowerMachineStartSignalTime = null;
             ApplySnapshot(_testFlowService.Initialize(TestFlowOptions.FromConfiguration(_configuration)), countYield: false);
-            AddLog($"下位机报文超过 {_configuration.Communication.LowerMachinePayloadTimeoutSeconds} 秒未收到 end 或 reset：当前测试数据已作废，不保存、不导出、不上传 MES；等待新的 Item1 表头");
+            AddLog($"下位机报文超过 {_configuration.Communication.LowerMachinePayloadTimeoutSeconds} 秒未收到 end 或 reset：当前测试数据已作废；等待新的 Item1 表头，缺失时最多请求 3 次");
+            StartTestItemRequestRetry(waitForAutomaticHeader: true);
         });
     }
 
@@ -1692,7 +2143,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task CompleteByPayloadAsync(string payload, bool countYield)
     {
-        var snapshot = _testFlowService.CompleteTest(payload);
+        var fallbackStartTime = IsKunshanJiaLianYiDedicatedConfiguration
+            ? _lowerMachineStartSignalTime
+            : null;
+        var snapshot = _testFlowService.CompleteTest(payload, fallbackStartTime);
+        _lowerMachineStartSignalTime = null;
         ApplySnapshot(snapshot, countYield);
         AddLog(snapshot.Message);
 
@@ -1703,19 +2158,36 @@ public sealed class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            RecordProductionResult(snapshot);
-            PersistDailyYieldStatistics();
-            await UpdateConsecutiveNgAlarmAsync(snapshot);
-            await ExportResultAsync(snapshot);
-            if (snapshot.IsPass == false && _configuration.User.Jly.ShowFailResultPopup)
+            var holdJiaLianYiMesUpload = ShouldHoldJiaLianYiMesUpload(snapshot);
+            if (holdJiaLianYiMesUpload)
             {
-                await ShowRuntimePopupAsync("测试结果：FAIL", requiresConfirmation: false);
+                BeginJiaLianYiMesUpload(snapshot.Barcode);
             }
-            await UploadMesResultAsync(snapshot);
+
+            try
+            {
+                RecordProductionResult(snapshot);
+                PersistDailyYieldStatistics();
+                await UpdateConsecutiveNgAlarmAsync(snapshot);
+                var exportResults = await ExportResultAsync(snapshot);
+                if (snapshot.IsPass == false && _configuration.User.Jly.ShowFailResultPopup)
+                {
+                    await ShowRuntimePopupAsync("测试结果：FAIL", requiresConfirmation: false);
+                }
+
+                await UploadMesResultAsync(snapshot, exportResults);
+            }
+            finally
+            {
+                if (holdJiaLianYiMesUpload)
+                {
+                    EndJiaLianYiMesUpload(snapshot.Barcode);
+                }
+            }
         }
     }
 
-    private async Task ExportResultAsync(TestFlowSnapshot snapshot)
+    private async Task<IReadOnlyList<ResultExportResult>> ExportResultAsync(TestFlowSnapshot snapshot)
     {
         var results = await _exportRuntimeService.ExportAsync(_configuration, snapshot);
 
@@ -1725,6 +2197,24 @@ public sealed class MainWindowViewModel : ViewModelBase
                 ? $"{result.ExporterName}:{result.Message} {result.FilePath}"
                 : $"{result.ExporterName}:{result.Message}");
         }
+
+        return results;
+    }
+
+    private static IReadOnlyList<MesUploadFile> GetMesCsvFiles(IReadOnlyList<ResultExportResult>? exportResults)
+    {
+        if (exportResults is null)
+        {
+            return Array.Empty<MesUploadFile>();
+        }
+
+        return exportResults
+            .Where(result => result.IsSuccess && !string.IsNullOrWhiteSpace(result.FilePath))
+            .SelectMany(result => result.FilePath.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Where(path => path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(path => new MesUploadFile { FilePath = path })
+            .ToList();
     }
 
     private async Task<bool> EnsureResultFilesAvailableAsync(string barcode)
@@ -1735,7 +2225,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             return true;
         }
 
-        var message = $"以下结果文件正在被占用或不可写入，请关闭文件后重新测试：{Environment.NewLine}"
+        var message = $"以下 CSV 档案正在被占用或不可写入，本次测试结果不会保存、也不会上传 MES。请关闭文件后重新测试：{Environment.NewLine}"
             + string.Join(Environment.NewLine, lockedFiles);
         AddLog(message.Replace(Environment.NewLine, "；"));
         await ShowRuntimePopupAsync(message, force: true, requiresConfirmation: true);
@@ -1773,11 +2263,61 @@ public sealed class MainWindowViewModel : ViewModelBase
             candidateFiles.Add(Path.Combine(output.DclDirectory, $"{barcode}.dcl"));
         }
 
+        AddJiaLianYiCsvCandidates(enabledExporters, candidateFiles, barcode);
+
         return candidateFiles
             .Where(File.Exists)
             .Where(IsFileLockedForWrite)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private void AddJiaLianYiCsvCandidates(
+        ISet<string> enabledExporters,
+        ISet<string> candidateFiles,
+        string barcode)
+    {
+        if (!enabledExporters.Contains("JiaLianYi.Export"))
+        {
+            return;
+        }
+
+        var options = _configuration.Export.GetOptions("JiaLianYi.Export");
+        var csvName = GetExportOption(options, "CsvName", _configuration.Output.CsvName);
+        var fileName = ResultExportFileName.ApplyTestPieceSuffix(
+            _configuration,
+            $"{csvName}_{DateTime.Now:yyyyMMdd}.csv");
+        var passDirectory = GetExportOption(options, "CsvDirectory", _configuration.Output.CsvDirectory);
+        var failDirectory = GetExportOption(options, "FailCsvDirectory", passDirectory);
+
+        candidateFiles.Add(Path.Combine(GetJiaLianYiCsvDirectory(options, passDirectory, barcode), fileName));
+        candidateFiles.Add(Path.Combine(GetJiaLianYiCsvDirectory(options, failDirectory, barcode), fileName));
+    }
+
+    private static string GetJiaLianYiCsvDirectory(
+        IReadOnlyDictionary<string, string> options,
+        string baseDirectory,
+        string barcode)
+    {
+        if (!IsExportOptionEnabled(options, "LegacyDirectoryLayout"))
+        {
+            return baseDirectory;
+        }
+
+        var flag = barcode.Length >= 9 ? barcode[8].ToString() : "_";
+        return Path.Combine(baseDirectory, flag, "CSV");
+    }
+
+    private static string GetExportOption(IReadOnlyDictionary<string, string> options, string key, string defaultValue)
+    {
+        return options.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : defaultValue;
+    }
+
+    private static bool IsExportOptionEnabled(IReadOnlyDictionary<string, string> options, string key)
+    {
+        return options.TryGetValue(key, out var value) && bool.TryParse(value, out var enabled) && enabled;
     }
 
     private static bool IsFileLockedForWrite(string path)
@@ -1797,8 +2337,14 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private async Task UploadMesResultAsync(TestFlowSnapshot snapshot)
+    private async Task UploadMesResultAsync(TestFlowSnapshot snapshot, IReadOnlyList<ResultExportResult>? exportResults = null)
     {
+        if (IsJiaLianYiDebugMode)
+        {
+            AddLog("嘉联益调试模式：已跳过 MES 上传");
+            return;
+        }
+
         if (!_configuration.Mes.Enabled || !_configuration.Mes.OnlineMode)
         {
             return;
@@ -1816,7 +2362,7 @@ public sealed class MainWindowViewModel : ViewModelBase
                 else
                 {
                     AddLog($"JLY 二次测试未完成：SN {_pendingJlyRetestFailure.Barcode} 已按首次 FAIL 上传 MES");
-                    await UploadMesSnapshotAsync(_pendingJlyRetestFailure);
+                    await UploadMesSnapshotAsync(_pendingJlyRetestFailure, exportResults);
                     _pendingJlyRetestFailure = null;
                 }
             }
@@ -1829,18 +2375,35 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
         }
 
-        await UploadMesSnapshotAsync(snapshot);
+        await UploadMesSnapshotAsync(snapshot, exportResults);
     }
 
-    private async Task UploadMesSnapshotAsync(TestFlowSnapshot snapshot)
+    private async Task UploadMesSnapshotAsync(TestFlowSnapshot snapshot, IReadOnlyList<ResultExportResult>? exportResults = null)
     {
-        if (ShouldBlockMesUploadByYield())
+        if (ShouldBlockMesUploadByYield(snapshot))
         {
-            AddLog($"JLY 测试片良率 {YieldRate:F2}% 小于或等于设定值 {_configuration.User.Jly.YieldUploadThreshold:F2}%，不上传 MES");
+            AddLog($"JLY 生产模式 FAIL 的当前良率 {YieldRate:F2}% 小于或等于设定值 {_configuration.User.Jly.YieldUploadThreshold:F2}%，不上传 MES");
             return;
         }
 
-        var result = await _mesRuntimeService.UploadResultAsync(_configuration, snapshot);
+        MesResult result;
+        if (IsJiaLianYiProductionMode)
+        {
+            await _jiaLianYiMesUploadGate.WaitAsync();
+            try
+            {
+                result = await UploadJiaLianYiMesResultWithTimeoutAsync(snapshot);
+            }
+            finally
+            {
+                _jiaLianYiMesUploadGate.Release();
+            }
+        }
+        else
+        {
+            result = await _mesRuntimeService.UploadResultAsync(_configuration, snapshot, GetMesCsvFiles(exportResults));
+        }
+
         if (string.Equals(result.Code, "DUPLICATE", StringComparison.OrdinalIgnoreCase))
         {
             AddLog($"MES上传跳过：{result.Message}");
@@ -1849,9 +2412,41 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         var message = result.IsSuccess ? $"MES上传成功：{result.Message}" : $"MES上传失败：{result.Message}";
         AddLog(message);
+        ApplyJiaLianYiModeFromMesResponse(result, "MES 上传");
         if (!result.IsSuccess)
         {
+            if (!string.IsNullOrWhiteSpace(result.Diagnostics))
+            {
+                AddLog(result.Diagnostics);
+            }
+
             _ = ShowRuntimePopupAsync(message, requiresConfirmation: false);
+        }
+    }
+
+    private async Task<MesResult> UploadJiaLianYiMesResultWithTimeoutAsync(TestFlowSnapshot snapshot)
+    {
+        var uploadTask = _mesRuntimeService.UploadResultAsync(_configuration, snapshot);
+        var timeoutTask = Task.Delay(TimeSpan.FromSeconds(JiaLianYiMesUploadTimeoutSeconds));
+        if (await Task.WhenAny(uploadTask, timeoutTask) == uploadTask)
+        {
+            return await uploadTask;
+        }
+
+        _ = ObserveLateJiaLianYiMesUploadAsync(uploadTask, snapshot.Barcode);
+        return MesResult.Fail($"MES 上传超时：{JiaLianYiMesUploadTimeoutSeconds} 秒未收到反馈");
+    }
+
+    private async Task ObserveLateJiaLianYiMesUploadAsync(Task<MesResult> uploadTask, string barcode)
+    {
+        try
+        {
+            var lateResult = await uploadTask;
+            AddLog($"MES 上传超时后的延迟返回已忽略：SN {barcode}，{lateResult.Message}");
+        }
+        catch (Exception ex)
+        {
+            AddLog($"MES 上传超时后的延迟任务异常已忽略：SN {barcode}，{ex.Message}");
         }
     }
 
@@ -1860,14 +2455,158 @@ public sealed class MainWindowViewModel : ViewModelBase
         return ShowRuntimePopupAsync("模拟提醒：MES 上传失败，请检查网络连接或 MES 服务状态。", force: true);
     }
 
-    private bool ShouldBlockMesUploadByYield()
+    private bool ShouldBlockMesUploadByYield(TestFlowSnapshot snapshot)
     {
-        if (!_configuration.User.Jly.TestPieceMode)
+        if (!_configuration.User.Jly.TestPieceMode || snapshot.IsPass == true)
         {
             return false;
         }
 
         return YieldRate <= _configuration.User.Jly.YieldUploadThreshold;
+    }
+
+    private bool IsJiaLianYiDebugMode => IsKunshanJiaLianYiDedicatedConfiguration
+        && _configuration.User.Jly.RunMode == JiaLianYiRunMode.Debug;
+
+    private bool IsJiaLianYiProductionMode => IsKunshanJiaLianYiDedicatedConfiguration
+        && _configuration.User.Jly.RunMode == JiaLianYiRunMode.TestPiece;
+
+    private bool ShouldHoldJiaLianYiMesUpload(TestFlowSnapshot snapshot)
+    {
+        return snapshot.IsPass.HasValue
+            && IsJiaLianYiProductionMode
+            && _configuration.Mes.Enabled
+            && _configuration.Mes.OnlineMode;
+    }
+
+    private async Task WaitForJiaLianYiMesUploadAsync()
+    {
+        if (!IsJiaLianYiProductionMode)
+        {
+            return;
+        }
+
+        Task? completionTask;
+        lock (_jiaLianYiMesUploadSync)
+        {
+            completionTask = _pendingJiaLianYiMesUploadCount > 0
+                ? _jiaLianYiMesUploadCompletion?.Task
+                : null;
+        }
+
+        if (completionTask is null)
+        {
+            return;
+        }
+
+        AddLog("嘉联益生产模式：正在等待上一笔 MES 上传返回，暂不启动新的测试");
+        await completionTask;
+    }
+
+    private void BeginJiaLianYiMesUpload(string barcode)
+    {
+        if (string.IsNullOrWhiteSpace(barcode))
+        {
+            return;
+        }
+
+        lock (_jiaLianYiMesUploadSync)
+        {
+            if (_pendingJiaLianYiMesUploadCount == 0)
+            {
+                _jiaLianYiMesUploadCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+
+            _pendingJiaLianYiMesUploadCount++;
+        }
+    }
+
+    private void EndJiaLianYiMesUpload(string barcode)
+    {
+        if (string.IsNullOrWhiteSpace(barcode))
+        {
+            return;
+        }
+
+        TaskCompletionSource? completion = null;
+        lock (_jiaLianYiMesUploadSync)
+        {
+            _pendingJiaLianYiMesUploadCount = Math.Max(0, _pendingJiaLianYiMesUploadCount - 1);
+            if (_pendingJiaLianYiMesUploadCount == 0)
+            {
+                completion = _jiaLianYiMesUploadCompletion;
+                _jiaLianYiMesUploadCompletion = null;
+            }
+        }
+
+        completion?.TrySetResult();
+    }
+
+    private bool IsJiaLianYiStandardPieceMode => IsKunshanJiaLianYiDedicatedConfiguration
+        && _configuration.User.Jly.RunMode == JiaLianYiRunMode.StandardPiece;
+
+    private bool ShouldSkipMesPreCheck => IsKunshanJiaLianYiDedicatedConfiguration
+        && _configuration.User.Jly.RunMode == JiaLianYiRunMode.Debug;
+
+    private static bool IsJiaLianYiStandardPiecePreCheckPassed(MesResult result)
+    {
+        if (!result.IsSuccess)
+        {
+            return false;
+        }
+
+        var response = string.Join("\n", new[] { result.Message, result.RawResponse, result.Diagnostics });
+        var normalizedResponse = System.Text.RegularExpressions.Regex.Replace(response, @"\s+", string.Empty)
+            .Replace('：', ':');
+        return normalizedResponse.Contains("MES卡关通过:標準片", StringComparison.OrdinalIgnoreCase)
+            || normalizedResponse.Contains("MES卡关通过:标准片", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ApplyJiaLianYiModeFromMesResponse(MesResult result, string source)
+    {
+        if (!IsKunshanJiaLianYiDedicatedConfiguration)
+        {
+            return;
+        }
+
+        var response = string.Join("\n", new[] { result.Message, result.RawResponse, result.Diagnostics });
+        if (response.Contains("標準片驗證未確實", StringComparison.OrdinalIgnoreCase)
+            || response.Contains("标准片验证未确实", StringComparison.OrdinalIgnoreCase))
+        {
+            SwitchJiaLianYiRunModeFromMes(JiaLianYiRunMode.StandardPiece, $"{source} 返回标准片验证未确实");
+            return;
+        }
+
+        var normalizedResponse = System.Text.RegularExpressions.Regex.Replace(response, @"\s+", string.Empty)
+            .Replace('：', ':');
+        if (result.IsSuccess
+            && (normalizedResponse.Contains("MES卡关通过:標準片", StringComparison.OrdinalIgnoreCase)
+                || normalizedResponse.Contains("MES卡关通过:标准片", StringComparison.OrdinalIgnoreCase)))
+        {
+            SwitchJiaLianYiRunModeFromMes(JiaLianYiRunMode.StandardPiece, $"{source} 返回标准片");
+            return;
+        }
+
+        if (result.IsSuccess
+            && _configuration.User.Jly.RunMode == JiaLianYiRunMode.StandardPiece
+            && response.Contains("Golden sample testing:Y", StringComparison.OrdinalIgnoreCase)
+            && response.Contains("Tooling status:Y", StringComparison.OrdinalIgnoreCase))
+        {
+            SwitchJiaLianYiRunModeFromMes(JiaLianYiRunMode.TestPiece, $"{source} 返回 Golden sample testing:Y 且 Tooling status:Y");
+        }
+    }
+
+    private void SwitchJiaLianYiRunModeFromMes(JiaLianYiRunMode mode, string reason)
+    {
+        if (_configuration.User.Jly.RunMode == mode)
+        {
+            return;
+        }
+
+        _configuration.User.Jly.RunMode = mode;
+        Save();
+        RefreshDerivedState();
+        AddLog($"嘉联益已自动切换为{GetJiaLianYiRunModeName(mode)}：{reason}");
     }
 
     private void RecordProductionResult(TestFlowSnapshot snapshot)
@@ -1937,6 +2676,66 @@ public sealed class MainWindowViewModel : ViewModelBase
         AddLog($"已切换为在线模式：{result.Message}");
     }
 
+    private void SelectJiaLianYiRunMode(JiaLianYiRunMode mode)
+    {
+        if (!CanSelectJiaLianYiRunMode)
+        {
+            _configurationDialogService.ShowAlert("MES 未打开", "请先将主界面的 MES 切换为在线模式，再选择标准片、生产模式或调试模式。");
+            return;
+        }
+
+        if (_configuration.User.Jly.RunMode == mode)
+        {
+            return;
+        }
+
+        _configuration.User.Jly.RunMode = mode;
+        Save();
+        RefreshDerivedState();
+        AddLog($"昆山嘉联益模式已切换为：{GetJiaLianYiRunModeName(mode)}");
+    }
+
+    private void CheckJiaLianYiAutoStandardMode()
+    {
+        if (!IsKunshanJiaLianYiDedicatedConfiguration)
+        {
+            return;
+        }
+
+        var now = DateTime.Now;
+        if ((now.Hour != 8 && now.Hour != 20) || now.Minute != 0 || now.Second > 30)
+        {
+            return;
+        }
+
+        var switchKey = now.ToString("yyyyMMddHH");
+        if (string.Equals(_lastJiaLianYiAutoStandardSwitch, switchKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastJiaLianYiAutoStandardSwitch = switchKey;
+        if (_configuration.User.Jly.RunMode == JiaLianYiRunMode.StandardPiece)
+        {
+            return;
+        }
+
+        _configuration.User.Jly.RunMode = JiaLianYiRunMode.StandardPiece;
+        Save();
+        RefreshDerivedState();
+        AddLog("到达 08:00 / 20:00，已自动切换为标准片模式");
+    }
+
+    private static string GetJiaLianYiRunModeName(JiaLianYiRunMode mode)
+    {
+        return mode switch
+        {
+            JiaLianYiRunMode.TestPiece => "生产模式",
+            JiaLianYiRunMode.Debug => "调试模式",
+            _ => "标准片模式"
+        };
+    }
+
     private void ToggleLogVisibility()
     {
         IsLogVisible = !IsLogVisible;
@@ -1965,12 +2764,20 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private void RestoreDailyYieldStatistics()
     {
-        if (!_configuration.User.SaveDailyQuantity)
+        if (!ShouldPersistYieldStatistics)
         {
             return;
         }
 
         var statistics = _configuration.User.DailyYieldStatistics ??= new DailyYieldStatistics();
+        if (IsKunshanJiaLianYiDedicatedConfiguration)
+        {
+            PassCount = Math.Max(0, statistics.PassCount);
+            FailCount = Math.Max(0, statistics.FailCount);
+            AddLog($"已恢复嘉联益累计良率：PASS {PassCount}，FAIL {FailCount}，良率 {YieldRate:F2}%");
+            return;
+        }
+
         var today = DateTime.Today.ToString("yyyy-MM-dd");
         if (!string.Equals(statistics.Date, today, StringComparison.Ordinal))
         {
@@ -1989,7 +2796,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private void PersistDailyYieldStatistics()
     {
-        if (!_configuration.User.SaveDailyQuantity)
+        if (!ShouldPersistYieldStatistics)
         {
             return;
         }
@@ -2000,6 +2807,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         statistics.FailCount = FailCount;
         _configurationStore.Save(_configuration);
     }
+
+    private bool ShouldPersistYieldStatistics => IsKunshanJiaLianYiDedicatedConfiguration
+        || _configuration.User.SaveDailyQuantity;
 
     private void ClearSavedDailyYieldStatistics()
     {
@@ -2024,6 +2834,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         LowerMachineState = GetDeviceConnectionState(_configuration.Communication.LowerMachine, _lowerMachineConnection);
         RaiseConfigurationProperties();
         OnPropertyChanged(nameof(IsManualScanMode));
+        OnPropertyChanged(nameof(IsUsbPosHidScanner));
     }
 
     private static string GetDeviceConnectionState(DeviceConnectionConfiguration configuration, IDeviceConnection? connection)
@@ -2110,6 +2921,13 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(MesPackNo));
         OnPropertyChanged(nameof(MesTooling));
         OnPropertyChanged(nameof(MesProdNo));
+        OnPropertyChanged(nameof(CanSelectJiaLianYiRunMode));
+        OnPropertyChanged(nameof(IsStandardPieceMode));
+        OnPropertyChanged(nameof(IsTestPieceMode));
+        OnPropertyChanged(nameof(IsDebugMode));
+        OnPropertyChanged(nameof(JiaLianYiRunModeText));
+        OnPropertyChanged(nameof(JiaLianYiRunModeBackground));
+        OnPropertyChanged(nameof(JiaLianYiRunModeForeground));
         OnPropertyChanged(nameof(MesPlugin));
         OnPropertyChanged(nameof(IsPopupCenteredAndEnlarged));
         OnPropertyChanged(nameof(IsPopupRedAlert));
@@ -2128,10 +2946,15 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanOpenCommunicationConfiguration));
         OnPropertyChanged(nameof(CanManageTestItems));
         OnPropertyChanged(nameof(CanManageUsers));
+        OnPropertyChanged(nameof(CanManageUsersInStandardMode));
         OnPropertyChanged(nameof(CanImportProjectProfile));
         OnPropertyChanged(nameof(CanViewAnalysis));
+        OnPropertyChanged(nameof(CanViewAnalysisInStandardMode));
         OnPropertyChanged(nameof(CanViewHelp));
+        OnPropertyChanged(nameof(CanViewHelpInStandardMode));
         OnPropertyChanged(nameof(CanUseAdminTools));
+        OnPropertyChanged(nameof(IsKunshanJiaLianYiDedicatedConfiguration));
+        OnPropertyChanged(nameof(IsStandardConfigurationMode));
         if (!CanUseAdminTools)
         {
             IsAdminToolsVisible = false;
@@ -2391,6 +3214,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         {
             ConnectionType.SerialPort => $"{configuration.PortName} / {configuration.BaudRate}",
             ConnectionType.TcpClient or ConnectionType.TcpServer => $"{configuration.IpAddress}:{configuration.Port}",
+            ConnectionType.UsbPosHid => "USB POS HID",
             ConnectionType.Disabled => "已禁用",
             _ => configuration.ConnectionType.ToString()
         };

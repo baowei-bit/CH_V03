@@ -183,6 +183,8 @@ internal sealed class LowerMachineTcpServer : IDisposable
         return command.ToLowerInvariant() switch
         {
             "/start" => "DM\r\n",
+            "/partial" => "Test1,1-1,5.000,OK;Test2,1-1,",
+            "/reset" => "reset\r\n",
             "/items" => "Item1,J1_1-SHORT,10,0,ohm,1,1;Item2,R1,11.000,9.000,Kohm,1,1;Item3,U1-ID,0x38,0x38,HEX,1,1;3;end",
             "/pass" => "Test1,1-1,5.000,OK;Test2,1-1,9.983,OK;Test3,1-1,0x38,OK;3;end",
             "/fail" => "Test1,1-1,5.000,OK;Test2,1-1,12.600,NG;Test3,1-1,0x38,OK;3;end",
@@ -274,6 +276,8 @@ internal sealed class LowerMachineTcpServer : IDisposable
     {
         Console.WriteLine("Commands:");
         Console.WriteLine("  /start       Send start signal: DM\\r\\n");
+        Console.WriteLine("  /partial     Send an unfinished test-result frame without end.");
+        Console.WriteLine("  /reset       Send emergency-stop/reset signal: reset\\r\\n");
         Console.WriteLine("  /items       Send item list. CH_V01 should load 3 test items.");
         Console.WriteLine("  /pass        Send PASS result.");
         Console.WriteLine("  /fail        Send FAIL result.");

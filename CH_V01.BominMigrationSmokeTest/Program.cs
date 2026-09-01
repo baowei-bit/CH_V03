@@ -48,6 +48,30 @@ static async Task<bool> TestFlowAndExportAsync(string tempRoot)
     }
 
     Smoke.Assert(snapshot.Items[0].Result == "OK", "test item result comes from lower machine");
+    Smoke.Assert(snapshot.Items[0].PointA == "1", "original point-pair payload keeps point A");
+    Smoke.Assert(snapshot.Items[0].PointB == "1", "original point-pair payload keeps point B");
+    Smoke.Assert(snapshot.Items[0].TestValue == "5", "original point-pair payload keeps its test value");
+
+    var originalCompactResult = new DefaultIctProtocolAdapter().ParseResults("Test1,5.000,OK;1;end").Single();
+    Smoke.Assert(originalCompactResult.Value == "5.000", "original compact payload keeps its test value");
+    Smoke.Assert(originalCompactResult.Result == "OK", "original compact payload keeps its result");
+    Smoke.Assert(originalCompactResult.PointA == string.Empty && originalCompactResult.PointB == string.Empty,
+        "original compact payload has no point pair");
+
+    flow.StartTest();
+    var multiShortSnapshot = flow.CompleteTest("Test1,1-2-0^3-4-0^5-6-0,NG;1;end");
+    Smoke.Assert(multiShortSnapshot.IsPass == false, "multi-point SHORT NG produces a FAIL snapshot");
+    Smoke.Assert(multiShortSnapshot.Items[0].PointA == "1；3；5", "multi-point SHORT high points are combined");
+    Smoke.Assert(multiShortSnapshot.Items[0].PointB == "2；4；6", "multi-point SHORT low points are combined");
+    Smoke.Assert(multiShortSnapshot.Items[0].TestValue == "0；0；0", "multi-point SHORT resistance values are combined");
+    Smoke.Assert(multiShortSnapshot.Items[0].Result == "NG", "multi-point SHORT result comes from lower machine");
+
+    flow.StartTest();
+    var singleShortSnapshot = flow.CompleteTest("Test1,1-2-0^,NG;1;end");
+    Smoke.Assert(singleShortSnapshot.IsPass == false, "single SHORT NG produces a FAIL snapshot");
+    Smoke.Assert(singleShortSnapshot.Items[0].PointA == "1", "single SHORT high point is parsed");
+    Smoke.Assert(singleShortSnapshot.Items[0].PointB == "2", "single SHORT low point is parsed");
+    Smoke.Assert(singleShortSnapshot.Items[0].TestValue == "0", "single SHORT resistance is parsed");
 
     flow.StartTest();
     var outOfLimitOkSnapshot = flow.CompleteTest(BuildOutOfLimitOkPayload());

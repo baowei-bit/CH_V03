@@ -75,7 +75,7 @@ public sealed class ResultExportResult
     }
 }
 
-/// <summary>统一处理测试片模式下的结果文件命名。</summary>
+/// <summary>统一处理嘉联益调试模式下的结果文件命名。</summary>
 public static class ResultExportFileName
 {
     public static string ApplyTestPieceSuffix(ResultExportContext context, string fileName)
@@ -85,7 +85,7 @@ public static class ResultExportFileName
 
     public static string ApplyTestPieceSuffix(AppConfiguration configuration, string fileName)
     {
-        if (!configuration.User.Jly.TestPieceMode || string.IsNullOrWhiteSpace(fileName))
+        if (!configuration.User.Jly.DebugMode || string.IsNullOrWhiteSpace(fileName))
         {
             return fileName;
         }

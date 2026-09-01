@@ -35,9 +35,15 @@ public sealed class AppConfiguration
     }
 
     /// <summary>
-    /// 启用后启动时跳过登录窗口，并以操作员身份进入系统。
+    /// 启用后启动时跳过登录窗口，并以 <see cref="AutoLoginUserName"/> 指定的账号进入系统。
+    /// 未指定账号时为兼容旧配置，默认使用 operator 操作员账号。
     /// </summary>
     public bool DefaultOperatorLogin { get; set; }
+
+    /// <summary>
+    /// 自动登录账号。首次使用该账号手动登录成功后，会自动启用 <see cref="DefaultOperatorLogin"/>。
+    /// </summary>
+    public string AutoLoginUserName { get; set; } = string.Empty;
 }
 
 public sealed class IdentityConfiguration
@@ -61,6 +67,11 @@ public sealed class IdentityConfiguration
     public bool ScanRuleEnabled { get; set; }
 
     public string ScanRulePrefix { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 允许同一条码连续重复进行测试。关闭时，仅拦截与上一笔实际开始测试相同的条码。
+    /// </summary>
+    public bool AllowContinuousRepeatTest { get; set; }
 
     public bool BarcodePositionValidationEnabled { get; set; }
 
@@ -88,6 +99,11 @@ public sealed class CommunicationConfiguration
     public string ScannerTriggerCommand { get; set; } = "start\\r\\n";
 
     public string ScannerStopCommand { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 下位机触发自动扫码后，等待扫码枪返回条码的最长时间（秒）。
+    /// </summary>
+    public int ScannerWaitTimeoutSeconds { get; set; } = 10;
 
     public bool TestItemRequestEnabled { get; set; }
 
@@ -138,10 +154,11 @@ public sealed class DeviceConnectionConfiguration
 
 public enum ConnectionType
 {
-    SerialPort,
-    TcpClient,
-    TcpServer,
-    Disabled
+    SerialPort = 0,
+    TcpClient = 1,
+    TcpServer = 2,
+    Disabled = 3,
+    UsbPosHid = 4
 }
 
 public sealed class MesConfiguration
@@ -222,6 +239,11 @@ public sealed class ExportPluginConfiguration
 
 public sealed class CompatibilityConfiguration
 {
+    /// <summary>
+    /// 启用昆山嘉联益现场的精简配置界面，并锁定对应的 MES / 导出插件。
+    /// </summary>
+    public bool EnableKunshanJiaLianYiDedicatedConfiguration { get; set; }
+
     public string ProjectProfileId { get; set; } = string.Empty;
 
     public string ProtocolAdapterId { get; set; } = "Default.Ict";
@@ -380,6 +402,13 @@ public sealed class UserConfiguration
             DisplayName = "管理员",
             Password = "admin",
             Role = UserRole.Administrator
+        },
+        new UserAccountConfiguration
+        {
+            UserName = "huaqin",
+            DisplayName = "华勤管理员",
+            Password = "admin",
+            Role = UserRole.Administrator
         }
     };
 
@@ -406,6 +435,13 @@ public sealed class UserConfiguration
             Password = "admin",
             Role = UserRole.Administrator
         });
+        UpsertDefaultAccount(new UserAccountConfiguration
+        {
+            UserName = "huaqin",
+            DisplayName = "华勤管理员",
+            Password = "admin",
+            Role = UserRole.Administrator
+        });
     }
 
     private void UpsertDefaultAccount(UserAccountConfiguration account)
@@ -426,10 +462,29 @@ public sealed class UserConfiguration
 
 public sealed class JiaLianYiConfiguration
 {
-    /// <summary>False 为标准片模式；True 为测试片模式。</summary>
-    public bool TestPieceMode { get; set; }
+    /// <summary>嘉联益运行模式。调试模式下导出的 CSV 文件名追加 _debug。</summary>
+    public JiaLianYiRunMode RunMode { get; set; } = JiaLianYiRunMode.StandardPiece;
 
-    /// <summary>测试片模式下，良率小于或等于此值时不上传 MES。</summary>
+    /// <summary>兼容旧配置：False 为标准片模式；True 为生产模式。</summary>
+    public bool TestPieceMode
+    {
+        get => RunMode == JiaLianYiRunMode.TestPiece;
+        set
+        {
+            if (value)
+            {
+                RunMode = JiaLianYiRunMode.TestPiece;
+            }
+            else if (RunMode == JiaLianYiRunMode.TestPiece)
+            {
+                RunMode = JiaLianYiRunMode.StandardPiece;
+            }
+        }
+    }
+
+    public bool DebugMode => RunMode == JiaLianYiRunMode.Debug;
+
+    /// <summary>生产模式下，良率小于或等于此值时不上传 MES。</summary>
     public double YieldUploadThreshold { get; set; } = 90;
 
     public bool UseSnTimeForTxtFileName { get; set; }
@@ -439,6 +494,13 @@ public sealed class JiaLianYiConfiguration
     public bool RequireNumericTestValues { get; set; }
 
     public bool RecordSecondTestYield { get; set; }
+}
+
+public enum JiaLianYiRunMode
+{
+    StandardPiece,
+    TestPiece,
+    Debug
 }
 
 public sealed class DailyYieldStatistics

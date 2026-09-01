@@ -36,13 +36,17 @@ public sealed class AuthenticationService
 
     public bool LoginAsDefaultOperator(UserConfiguration configuration, out string message)
     {
+        return LoginAsConfiguredUser(configuration, "operator", out message);
+    }
+
+    public bool LoginAsConfiguredUser(UserConfiguration configuration, string userName, out string message)
+    {
         var account = configuration.Accounts.FirstOrDefault(item =>
-            string.Equals(item.UserName, "operator", StringComparison.OrdinalIgnoreCase)
-            && item.Role == UserRole.Operator);
+            string.Equals(item.UserName, userName, StringComparison.OrdinalIgnoreCase));
 
         if (account is null)
         {
-            message = "未找到操作员账号，请关闭默认操作员登录后使用账号密码登录。";
+            message = $"未找到自动登录账号 {userName}，请关闭自动登录后使用账号密码登录。";
             return false;
         }
 
@@ -50,10 +54,10 @@ public sealed class AuthenticationService
         {
             UserName = account.UserName,
             DisplayName = string.IsNullOrWhiteSpace(account.DisplayName) ? account.UserName : account.DisplayName,
-            Role = UserRole.Operator,
+            Role = account.Role,
             IsAuthenticated = true
         };
-        message = "已自动以操作员身份登录";
+        message = $"已自动以{CurrentSession.RoleText}身份登录";
         return true;
     }
 

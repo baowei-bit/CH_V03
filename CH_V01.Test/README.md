@@ -29,6 +29,8 @@ dotnet run --project .\CH_V01.Test\CH_V01.Test.csproj -- 15000 0.0.0.0
 ## 命令
 
 - `/start`：发送启动信号 `DM\r\n`
+- `/partial`：发送一段没有 `end` 的未完成测试结果，用于模拟急停前残留数据
+- `/reset`：发送急停/复位信号 `reset\r\n`
 - `/items`：发送测试项列表
 - `/pass`：发送 PASS 测试结果
 - `/fail`：发送 FAIL 测试结果
@@ -46,3 +48,12 @@ dotnet run --project .\CH_V01.Test\CH_V01.Test.csproj -- 15000 0.0.0.0
 2. CH_V01 下位机配置为 `TcpClient`，IP/端口指向本程序。
 3. 在 CH_V01 中执行设备连接，看到本程序显示 `Client connected`。
 4. 在本程序输入 `/items` 发送测试项，或输入 `/pass`、`/fail` 发送测试结果。
+
+## 急停恢复回归流程
+
+1. 连接后先输入 `/items`，只加载一次测试项目表。
+2. 输入 `/start`，按当前扫码模式完成扫码并开始第一轮测试。
+3. 依次输入 `/partial`、`/reset`，模拟第一轮数据未发送完时急停。
+4. 急停后再次输入 `/pass`，确认该旧周期结果被忽略，不生成结果记录和文件。
+5. 输入 `/start`，完成第二轮扫码后直接输入 `/pass`，不要再次输入 `/items`。
+6. 确认日志出现“已收到新的 DM 信号，恢复接收本周期测试结果”和“测试结束：PASS”，并确认第二轮结果已写入产量记录及导出文件。
