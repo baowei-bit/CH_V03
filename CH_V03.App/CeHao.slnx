@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="../CH_V03.Core/CH_V03.Core.csproj" />
+  <Project Path="CeHao.csproj" />
+  <Project Path="../CH_V03.Updater/CH_V03.Updater.csproj" />
+  <Project Path="../CH_V03.UpdateServer/CH_V03.UpdateServer.csproj" />
+</Solution>

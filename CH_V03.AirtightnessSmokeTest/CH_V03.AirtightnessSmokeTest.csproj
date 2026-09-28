@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CH_V03.Core/CH_V03.Core.csproj" />
+    <Compile Include="../CH_V03.App/Authentication/Services/AuthenticationService.cs" Link="AuthenticationService.cs" />
+    <Compile Include="../CH_V03.App/Shared/ViewModels/ViewModelBase.cs" Link="ViewModelBase.cs" />
+    <Compile Include="../CH_V03.App/Infrastructure/Services/RuntimeLogWriter.cs" Link="RuntimeLogWriter.cs" />
+    <Compile Include="../CH_V03.App/Airtightness/AirtightnessViewModel.cs" Link="AirtightnessViewModel.cs" />
+  </ItemGroup>
+</Project>

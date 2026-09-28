@@ -1,0 +1,144 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CH_V03.Core\CH_V03.Core.csproj" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.SwiftMomHttp\CH_V03.Mes.SwiftMomHttp.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.PBHMes\CH_V03.Mes.PBHMes.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.JiaLianYiCareerRule\CH_V03.Mes.JiaLianYiCareerRule.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.SuzhouJiaLianYiLuEnZe\CH_V03.Mes.SuzhouJiaLianYiLuEnZe.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.SuzhouWeiXin\CH_V03.Mes.SuzhouWeiXin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.Bomin\CH_V03.Mes.Bomin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.YiDongEap\CH_V03.Mes.YiDongEap.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.HuaQin\CH_V03.Mes.HuaQin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Export\CH_V03.Export.JiaLianYi\CH_V03.Export.JiaLianYi.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Export\CH_V03.Export.SuzhouJiaLianYiLuEnZe\CH_V03.Export.SuzhouJiaLianYiLuEnZe.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Export\CH_V03.Export.SuzhouWeiXin\CH_V03.Export.SuzhouWeiXin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Export\CH_V03.Export.Bomin\CH_V03.Export.Bomin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Export\CH_V03.Export.YiDongEap\CH_V03.Export.YiDongEap.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20240616" />
+    <PackageReference Include="ZXing.Net" Version="0.16.9" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PlatformTarget>x64</PlatformTarget>
+     <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\company-icon.ico</ApplicationIcon>
+    <AssemblyName>CeHao</AssemblyName>
+    <Product>CeHao</Product>
+    <Version>3.0.0</Version>
+    <!-- AssemblyVersion 与 FileVersion 由 Version 自动派生，避免多处维护。 -->
+    <VersionLabel>CH_V$([System.Version]::Parse('$(Version)').Major.ToString('00')).$([System.Version]::Parse('$(Version)').Build.ToString('00'))</VersionLabel>
+    <VersionedBuildDirectory>$(MSBuildProjectDirectory)\..\..\release\$(VersionLabel)\</VersionedBuildDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\company-logo.png" />
+    <Resource Include="Assets\company-icon.png" />
+    <Resource Include="Assets\company-logo-full.jpg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Native\libdmtx\libdmtx-64.dll" Link="libdmtx-64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Native\libdmtx\libdmtx-LICENSE.txt" Link="licenses\libdmtx-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="config\appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\CH_V03.Plugins\profiles\*.json">
+      <Link>profiles\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+
+  <Target Name="CopyMesPlugins" AfterTargets="Build">
+    <ItemGroup>
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.SwiftMomHttp\bin\$(Configuration)\net8.0\CH_V03.Mes.SwiftMomHttp.dll" />
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.PBHMes\bin\$(Configuration)\net8.0\CH_V03.Mes.PBHMes.dll" />
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.JiaLianYiCareerRule\bin\$(Configuration)\net8.0\CH_V03.Mes.JiaLianYiCareerRule.dll" />
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.JiaLianYiCareerRule\bin\$(Configuration)\net8.0\CareerRule.dll" />
+      <MesPluginFiles Include="$(OutputPath)Newtonsoft.Json.dll" />
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.SuzhouJiaLianYiLuEnZe\bin\$(Configuration)\net8.0\CH_V03.Mes.SuzhouJiaLianYiLuEnZe.dll" />
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.SuzhouWeiXin\bin\$(Configuration)\net8.0\CH_V03.Mes.SuzhouWeiXin.dll" />
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.Bomin\bin\$(Configuration)\net8.0\CH_V03.Mes.Bomin.dll" />
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.YiDongEap\bin\$(Configuration)\net8.0\CH_V03.Mes.YiDongEap.dll" />
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.HuaQin\bin\$(Configuration)\net8.0\CH_V03.Mes.HongXin.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutputPath)plugins\mes" />
+    <ItemGroup>
+      <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\BW_V01.*.dll" />
+      <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\CH_V03.Mes.HuaQin.dll" />
+    </ItemGroup>
+    <Delete Files="@(StaleMesPluginFiles)" />
+    <Copy SourceFiles="@(MesPluginFiles)" DestinationFolder="$(OutputPath)plugins\mes" SkipUnchangedFiles="true" Condition="Exists('%(MesPluginFiles.Identity)')" />
+  </Target>
+
+  <Target Name="CopyExportPlugins" AfterTargets="Build">
+    <ItemGroup>
+      <ExportPluginFiles Include="..\CH_V03.Plugins\Export\CH_V03.Export.JiaLianYi\bin\$(Configuration)\net8.0\CH_V03.Export.JiaLianYi.dll" />
+      <ExportPluginFiles Include="..\CH_V03.Plugins\Export\CH_V03.Export.SuzhouJiaLianYiLuEnZe\bin\$(Configuration)\net8.0\CH_V03.Export.SuzhouJiaLianYiLuEnZe.dll" />
+      <ExportPluginFiles Include="..\CH_V03.Plugins\Export\CH_V03.Export.SuzhouWeiXin\bin\$(Configuration)\net8.0\CH_V03.Export.SuzhouWeiXin.dll" />
+      <ExportPluginFiles Include="..\CH_V03.Plugins\Export\CH_V03.Export.Bomin\bin\$(Configuration)\net8.0\CH_V03.Export.Bomin.dll" />
+      <ExportPluginFiles Include="..\CH_V03.Plugins\Export\CH_V03.Export.YiDongEap\bin\$(Configuration)\net8.0\CH_V03.Export.YiDongEap.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutputPath)plugins\export" />
+    <ItemGroup>
+      <StaleExportPluginFiles Include="$(OutputPath)plugins\export\BW_V01.*.dll" />
+    </ItemGroup>
+    <Delete Files="@(StaleExportPluginFiles)" />
+    <Copy SourceFiles="@(ExportPluginFiles)" DestinationFolder="$(OutputPath)plugins\export" SkipUnchangedFiles="true" Condition="Exists('%(ExportPluginFiles.Identity)')" />
+  </Target>
+
+  <!--
+    Visual Studio 的“生成”完成后，将完整可运行输出复制到按 Version 自动命名的目录。
+    例如 Version=3.0.1 时，目录为 release\CH_V03.01。
+    CeHao.exe 保持固定名称，避免影响现有更新程序和现场快捷方式。
+  -->
+  <Target Name="CopyVersionedBuildOutput" AfterTargets="CopyExportPlugins">
+    <ItemGroup>
+      <VersionedBuildFiles Include="$(TargetDir)**\*" />
+    </ItemGroup>
+    <MakeDir Directories="$(VersionedBuildDirectory)" />
+    <Copy SourceFiles="@(VersionedBuildFiles)"
+          DestinationFiles="@(VersionedBuildFiles->'$(VersionedBuildDirectory)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="已生成版本构建目录：$(VersionedBuildDirectory)" />
+  </Target>
+
+  <Target Name="CopyPluginsToPublishOutput" AfterTargets="Publish">
+    <ItemGroup>
+      <MesPluginPublishFiles Include="$(TargetDir)plugins\mes\*.dll" />
+      <ExportPluginPublishFiles Include="$(TargetDir)plugins\export\*.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(PublishDir)plugins\mes" />
+    <MakeDir Directories="$(PublishDir)plugins\export" />
+    <Copy SourceFiles="@(MesPluginPublishFiles)" DestinationFolder="$(PublishDir)plugins\mes" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ExportPluginPublishFiles)" DestinationFolder="$(PublishDir)plugins\export" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyUpdaterToPublishOutput" AfterTargets="Publish">
+    <ItemGroup>
+      <UpdaterPublishFiles Include="..\CH_V03.Updater\bin\$(Configuration)\net8.0-windows\win-x64\publish\CeHao.Updater.exe" />
+    </ItemGroup>
+    <Copy SourceFiles="@(UpdaterPublishFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="Exists('%(UpdaterPublishFiles.Identity)')" />
+  </Target>
+</Project>
+
+
+
+

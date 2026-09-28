@@ -1,6 +1,6 @@
-﻿# 客户方案字段模板
+# 客户方案字段模板
 
-本文档用于新增客户方案时参考。实际导入文件必须保存为标准 JSON，放在 `CH_V01.Plugins/profiles/*.json`，不能保留 `//` 注释。
+本文档用于新增客户方案时参考。实际导入文件必须保存为标准 JSON，放在 `CH_V03.Plugins/profiles/*.json`，不能保留 `//` 注释。
 
 ```jsonc
 {
@@ -273,7 +273,7 @@
       // 下位机协议适配器编号，通常与顶层 ProtocolAdapterId 一致。
       "ProtocolAdapterId": "Default.Ict",
 
-      // 第三方 DLL 目录，例如 CH_V01.Plugins/libs 下的客户目录。
+      // 第三方 DLL 目录，例如 CH_V03.Plugins/libs 下的客户目录。
       "ThirdPartyLibraryDirectory": ""
     },
 
@@ -352,7 +352,7 @@
 
 ## 新增客户方案建议
 
-1. 复制现有 `CH_V01.Plugins/profiles/*.json` 作为新文件。
+1. 复制现有 `CH_V03.Plugins/profiles/*.json` 作为新文件。
 2. 先填写 `Id`、`Name`、`CustomerName`、`ProductName`、`ProtocolAdapterId`。
 3. 再填写通讯、MES、导出路径和插件参数。
 4. 如果旧项目的下位机命令、OK/NG 回复、测试数据格式不同，先新增协议适配器，再把 `ProtocolAdapterId` 指向新适配器。

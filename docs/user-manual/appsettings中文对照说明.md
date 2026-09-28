@@ -1,6 +1,6 @@
 # `appsettings.json` 中文对照说明
 
-适用文件：`src/CH_V01.App/config/appsettings.json`。该文件保存工站的基础资料、通信、MES、导出、账号和测试项目配置。
+适用文件：`src/CH_V03.App/config/appsettings.json`。该文件保存工站的基础资料、通信、MES、导出、账号和测试项目配置。
 
 > 修改前请先退出软件并备份原文件。JSON 的字段名、引号、逗号和层级必须保留；布尔值使用 `true` / `false`，不要加引号。程序运行后保存配置时会按当前结构重新写入文件。
 

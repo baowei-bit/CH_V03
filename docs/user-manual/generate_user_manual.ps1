@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $imageDir = Join-Path $root "images"
@@ -207,11 +207,11 @@ function ImageXml($rid, $cx, $cy, $name) {
 }
 
 $sections = New-Object System.Collections.Generic.List[string]
-$sections.Add((ParagraphXml "CH_V01 测试系统使用文档" "Title"))
-$sections.Add((ParagraphXml "适用范围：CH_V01.App 桌面端、MES 插件、导出插件、项目方案配置。"))
+$sections.Add((ParagraphXml "CH_V03 测试系统使用文档" "Title"))
+$sections.Add((ParagraphXml "适用范围：CH_V03.App 桌面端、MES 插件、导出插件、项目方案配置。"))
 $sections.Add((ParagraphXml "生成日期：2026-07-03"))
 $sections.Add((ParagraphXml "1. 系统概述" "Heading1"))
-$sections.Add((ParagraphXml "CH_V01 是一套用于产线测试工站的 WPF 桌面系统，围绕扫码、下位机通信、测试项目解析、MES 卡关/上传、结果导出和生产数据分析展开。系统通过插件和项目方案支持不同客户、产品、测试类型和现场接口。"))
+$sections.Add((ParagraphXml "CH_V03 是一套用于产线测试工站的 WPF 桌面系统，围绕扫码、下位机通信、测试项目解析、MES 卡关/上传、结果导出和生产数据分析展开。系统通过插件和项目方案支持不同客户、产品、测试类型和现场接口。"))
 $sections.Add((ParagraphXml "2. 登录与权限" "Heading1"))
 $sections.Add((ParagraphXml "默认账号来自配置：operator/123456、engineer/123、admin/admin。操作员用于日常生产；工程师可配置系统和测试项；管理员拥有用户配置、项目方案导入等完整权限。"))
 $sections.Add((ImageXml 1 5486400 3429000 "登录界面"))
@@ -240,7 +240,7 @@ $sections.Add((ParagraphXml "良率控制可配置是否限制上传以及上传
 $sections.Add((ParagraphXml "8. 测试项配置" "Heading1"))
 $sections.Add((ParagraphXml "测试项配置维护顺序、测试项目、下限、上限、单位、点位 A、点位 B。可新增、删除、上移、下移项目。主界面测试明细会根据这些项目展示测试值和 OK/NG 结果。"))
 $sections.Add((ParagraphXml "9. 项目方案导入" "Heading1"))
-$sections.Add((ParagraphXml "客户方案 JSON 放置在 CH_V01.Plugins/profiles 目录。方案包含客户、产品、测试类型、通讯参数、MES 插件参数、导出插件参数、路径、弹窗、测试项和用户设置。导入客户方案可快速切换到对应产线配置。"))
+$sections.Add((ParagraphXml "客户方案 JSON 放置在 CH_V03.Plugins/profiles 目录。方案包含客户、产品、测试类型、通讯参数、MES 插件参数、导出插件参数、路径、弹窗、测试项和用户设置。导入客户方案可快速切换到对应产线配置。"))
 $sections.Add((ParagraphXml "当前仓库包含方案：JiaLianYi_0033、KunshanJiaLianYi_MAODONG_Audio、KunshanJiaLianYi_MAODONG_ICT、KunshanJiaLianYi_MAODONG_Sealing、SuzhouWeiXin_18165_ICT。"))
 $sections.Add((ParagraphXml "10. 用户配置" "Heading1"))
 $sections.Add((ParagraphXml "用户配置可维护自动扫码、不扫码模式、连续 NG 报警数量、登录工号、治具编号，以及账号、显示名称、密码和角色。修改账号权限后应保存配置并重新登录验证。"))
@@ -255,7 +255,7 @@ foreach ($b in @(
     "CsvName：CSV 文件名前缀，按项目或客户要求配置。"
 )) { $sections.Add((BulletXml $b)) }
 $sections.Add((ParagraphXml "13. 插件说明" "Heading1"))
-$sections.Add((ParagraphXml "MES 插件 DLL 放在程序目录 plugins\mes 下，导出插件 DLL 放在 plugins\export 下。第三方库放在 CH_V01.Plugins/libs 或项目方案指定目录。SelectedPlugin 或 EnabledPluginIds 必须与插件 Id 一致。"))
+$sections.Add((ParagraphXml "MES 插件 DLL 放在程序目录 plugins\mes 下，导出插件 DLL 放在 plugins\export 下。第三方库放在 CH_V03.Plugins/libs 或项目方案指定目录。SelectedPlugin 或 EnabledPluginIds 必须与插件 Id 一致。"))
 $sections.Add((ParagraphXml "14. 常见问题" "Heading1"))
 foreach ($b in @(
     "扫码枪或下位机连接失败：检查通讯方式、COM 口、波特率、IP、端口、防火墙和设备占用情况。",
@@ -316,7 +316,7 @@ $contentTypes = @"
 </Types>
 "@
 
-$docxPath = Join-Path $root "CH_V01_测试系统使用文档.docx"
+$docxPath = Join-Path $root "CH_V03_测试系统使用文档.docx"
 if (Test-Path $docxPath) { Remove-Item $docxPath -Force }
 $zip = [System.IO.Compression.ZipFile]::Open($docxPath, [System.IO.Compression.ZipArchiveMode]::Create)
 function Add-TextEntry($zip, $name, $text) {

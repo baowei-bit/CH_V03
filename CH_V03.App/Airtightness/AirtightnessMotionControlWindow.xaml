@@ -1,0 +1,43 @@
+<Window x:Class="CH_V03.App.Views.AirtightnessMotionControlWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="双通道动作控制设置" Width="720" Height="550" MinWidth="650" MinHeight="500"
+        WindowStartupLocation="CenterOwner" Background="#EAF7FF" FontFamily="Microsoft YaHei UI">
+    <Window.Resources>
+        <Style TargetType="TextBox"><Setter Property="Height" Value="31"/><Setter Property="Padding" Value="8,3"/><Setter Property="Margin" Value="0,3"/><Setter Property="BorderBrush" Value="#7DD3FC"/></Style>
+        <Style x:Key="Label" TargetType="TextBlock"><Setter Property="Foreground" Value="#475569"/><Setter Property="Margin" Value="0,0,0,3"/></Style>
+        <Style x:Key="Panel" TargetType="Border"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#7DD3FC"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="16"/></Style>
+    </Window.Resources>
+    <DockPanel Margin="22">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="保存动作设置" Click="Save_Click" Padding="16,6" Margin="0,0,10,0"/>
+            <Button Content="关闭" IsCancel="True" Padding="16,6"/>
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+            <TextBlock Text="安全规则：默认不允许输出。确认现场接线、急停和限位保护正常后，才勾选“允许上位机控制继电器”。扫码不会自动输出；当前页面仅提供人工点动验证。动作模块需使用不同于气密仪的独立串口。" Foreground="#92400E" TextWrapping="Wrap"/>
+            <TextBlock x:Name="Error" Foreground="#DC2626" TextWrapping="Wrap" Margin="0,8,0,0"/>
+        </StackPanel>
+        <StackPanel>
+            <DockPanel Margin="0,0,0,12"><TextBlock Text="双通道继电器 / 动作控制" FontSize="19" FontWeight="SemiBold" Foreground="#164E63"/><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><TextBlock x:Name="ConnectionState" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#64748B"/><Button x:Name="ConnectionButton" Content="连接 I/O 模块" Click="ToggleConnection_Click" Padding="12,5"/></StackPanel></DockPanel>
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,12">
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,10,0"><TextBlock Text="串口号" Style="{StaticResource Label}"/><TextBox x:Name="Port"/></StackPanel>
+                    <StackPanel Margin="0,0,10,0" Grid.Column="1"><TextBlock Text="波特率" Style="{StaticResource Label}"/><TextBox x:Name="Baud"/></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="Modbus 站号" Style="{StaticResource Label}"/><TextBox x:Name="Address"/></StackPanel>
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,12">
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,10,0"><TextBlock Text="CH1 对应输出（Y）" Style="{StaticResource Label}"/><TextBox x:Name="Channel1Output"/></StackPanel>
+                    <StackPanel Margin="0,0,10,0" Grid.Column="1"><TextBlock Text="CH2 对应输出（Y）" Style="{StaticResource Label}"/><TextBox x:Name="Channel2Output"/></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="通讯超时 / ms" Style="{StaticResource Label}"/><TextBox x:Name="Timeout"/></StackPanel>
+                </Grid>
+            </Border>
+            <StackPanel Margin="4,0,0,14"><CheckBox x:Name="Enabled" Content="允许上位机控制继电器（未勾选时不能发送 CH1 / CH2 开关命令）" Foreground="#164E63"/><CheckBox x:Name="AutoOpenAfterBarcode" Content="CH1、CH2 条码齐全后自动开启两个动作输出" Foreground="#164E63" Margin="0,8,0,0"/></StackPanel>
+            <Border Style="{StaticResource Panel}"><UniformGrid Columns="2">
+                <StackPanel Margin="0,0,12,0"><TextBlock Text="CH1 动作输出" FontWeight="SemiBold"/><StackPanel Orientation="Horizontal" Margin="0,10,0,0"><Button Content="开启 CH1" Click="Channel1On_Click" Padding="14,5" Margin="0,0,8,0"/><Button Content="关闭 CH1" Click="Channel1Off_Click" Padding="14,5"/></StackPanel></StackPanel>
+                <StackPanel><TextBlock Text="CH2 动作输出" FontWeight="SemiBold"/><StackPanel Orientation="Horizontal" Margin="0,10,0,0"><Button Content="开启 CH2" Click="Channel2On_Click" Padding="14,5" Margin="0,0,8,0"/><Button Content="关闭 CH2" Click="Channel2Off_Click" Padding="14,5"/></StackPanel></StackPanel>
+            </UniformGrid></Border>
+        </StackPanel>
+    </DockPanel>
+</Window>
