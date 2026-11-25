@@ -3,6 +3,7 @@ using CH_V03.App.Commands;
 using CH_V03.App.Services;
 using CH_V03.App.Support;
 using CH_V03.Core.Configuration;
+using CH_V03.App.Localization;
 
 namespace CH_V03.App.ViewModels;
 
@@ -18,7 +19,7 @@ public sealed class LoginViewModel : DialogViewModelBase
     {
         _authenticationService = authenticationService;
         _configuration = configuration;
-        UserName = configuration.LoginJobNo;
+        if (configuration.PreferJingWangLogin) UserName = "jingwang";
         LoginCommand = new RelayCommand(Login);
         CancelCommand = new RelayCommand(() => Close(false));
     }
@@ -26,7 +27,15 @@ public sealed class LoginViewModel : DialogViewModelBase
     public string UserName
     {
         get => _userName;
-        set => SetField(ref _userName, value);
+        set
+        {
+            if (SetField(ref _userName, value))
+            {
+                UiLanguage.SetForUser(value.Trim());
+                Message = UiLanguage.Text("请输入账号和密码");
+                OnPropertyChanged(nameof(Version));
+            }
+        }
     }
 
     public string Password
@@ -41,7 +50,7 @@ public sealed class LoginViewModel : DialogViewModelBase
         private set => SetField(ref _message, value);
     }
 
-    public string Version => $"版本：{ApplicationVersion.Current}";
+    public string Version => $"{UiLanguage.Text("版本：")}{ApplicationVersion.Current}";
 
     public ICommand LoginCommand { get; }
 
@@ -52,10 +61,12 @@ public sealed class LoginViewModel : DialogViewModelBase
         if (_authenticationService.Login(_configuration, UserName.Trim(), Password, out var message))
         {
             _configuration.LoginJobNo = UserName.Trim();
+            if (string.Equals(_configuration.LoginJobNo, "jingwang", StringComparison.OrdinalIgnoreCase))
+                _configuration.PreferJingWangLogin = true;
             Close(true);
             return;
         }
 
-        Message = message;
+        Message = UiLanguage.Text(message);
     }
 }

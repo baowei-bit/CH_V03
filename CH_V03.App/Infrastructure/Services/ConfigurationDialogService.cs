@@ -1,4 +1,5 @@
 using System.Windows;
+using CH_V03.App.Localization;
 using CH_V03.App.ViewModels;
 using CH_V03.App.Views;
 using CH_V03.Core.Communication;
@@ -94,7 +95,7 @@ public sealed class ConfigurationDialogService : IConfigurationDialogService
 
     public bool ShowPluginConfiguration(AppConfiguration configuration)
     {
-        var viewModel = new PluginConfigurationViewModel(configuration, _mesPlugins, _exportPlugins);
+        var viewModel = new PluginConfigurationViewModel(configuration, _mesPlugins, _exportPlugins, _owner.DataContext is MainWindowViewModel { IsJingWangAccount: true });
         var window = new PluginConfigurationWindow
         {
             Owner = _owner,
@@ -133,7 +134,7 @@ public sealed class ConfigurationDialogService : IConfigurationDialogService
 
     public bool ShowUserConfiguration(UserConfiguration configuration, CompatibilityConfiguration compatibility, bool canManageAccounts)
     {
-        var viewModel = new UserConfigurationViewModel(configuration, compatibility, canManageAccounts);
+        var viewModel = new UserConfigurationViewModel(configuration, compatibility, canManageAccounts) { IsJingWangAccount = _owner.DataContext is MainWindowViewModel { IsJingWangAccount: true } };
         var window = new UserConfigurationWindow
         {
             Owner = _owner,
@@ -202,6 +203,19 @@ public sealed class ConfigurationDialogService : IConfigurationDialogService
         window.ShowDialog();
     }
 
+    public void ShowTestTrendAnalysis(IEnumerable<ProductionRecordViewModel> records)
+    {
+        var viewModel = new TestTrendAnalysisViewModel(records);
+        var window = new TestTrendAnalysisWindow
+        {
+            Owner = _owner,
+            DataContext = viewModel
+        };
+
+        BindCloseRequest(window, viewModel);
+        window.ShowDialog();
+    }
+
     public void ShowHelp(AppConfiguration configuration)
     {
         var viewModel = new HelpViewModel(configuration.Identity.ProductName, configuration.Mes.SelectedPlugin);
@@ -217,7 +231,7 @@ public sealed class ConfigurationDialogService : IConfigurationDialogService
 
     public void ShowAlert(string title, string message)
     {
-        MessageBox.Show(_owner, message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+        MessageBox.Show(_owner, UiLanguage.Text(message), UiLanguage.Text(title), MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private static void BindCloseRequest(Window window, DialogViewModelBase viewModel)

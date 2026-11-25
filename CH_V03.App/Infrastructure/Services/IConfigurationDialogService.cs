@@ -34,6 +34,8 @@ public interface IConfigurationDialogService
 
     void ShowDataAnalysis(IEnumerable<ProductionRecordViewModel> records, int passCount, int failCount, int currentConsecutiveNg);
 
+    void ShowTestTrendAnalysis(IEnumerable<ProductionRecordViewModel> records);
+
     void ShowHelp(AppConfiguration configuration);
 
     void ShowAlert(string title, string message);

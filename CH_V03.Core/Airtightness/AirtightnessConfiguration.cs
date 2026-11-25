@@ -17,6 +17,15 @@ public sealed class AirtightnessConfiguration
     public decimal TestSeconds { get; set; } = 5;
     public decimal ExhaustSeconds { get; set; } = 1;
     public decimal MaximumLeakPa { get; set; } = 35;
+    /// <summary>
+    /// 气密仪“检测结果”寄存器中表示本轮测试已结束的结果码，以逗号分隔。
+    /// 留空时不根据结果码提前结束，仍以工艺时间加安全余量作为兜底。
+    /// </summary>
+    public string TerminalResultCodes { get; set; } = string.Empty;
+    /// <summary>同一终止结果码连续读到的次数，避免串口瞬态数据或上轮残留结果导致误结束。</summary>
+    public int TerminalResultStablePolls { get; set; } = 2;
+    /// <summary>扫码完成后等待操作员按下仪器面板 Start 的最长时间；超时不写入测试记录。</summary>
+    public int ManualStartWaitTimeoutSeconds { get; set; } = 120;
     public AirtightnessCountingMode CountingMode { get; set; }
     /// <summary>手动扫码、自动接收扫码枪数据或不扫码。</summary>
     public AirtightnessScanMode ScanMode { get; set; } = AirtightnessScanMode.Manual;
@@ -36,6 +45,8 @@ public sealed class AirtightnessConfiguration
     };
     public AirtightnessInstrumentConfiguration Instrument { get; set; } = new();
     public AirtightnessMotionConfiguration Motion { get; set; } = new();
+    /// <summary>当前生产统计的起点；其前的正式记录保留用于追溯，但不再计入主界面 PASS/FAIL。</summary>
+    public DateTimeOffset? StatisticsStartAt { get; set; }
     public string RecordsDirectory { get; set; } = string.Empty;
     public string LogDirectory { get; set; } = string.Empty;
 
@@ -47,6 +58,9 @@ public sealed class AirtightnessConfiguration
         if (FillSeconds <= 0 || BalanceSeconds <= 0 || TestSeconds <= 0 || ExhaustSeconds <= 0)
             throw new InvalidDataException("各阶段时间必须大于 0 秒。");
         if (MaximumLeakPa < 0) throw new InvalidDataException("压降上限不能小于 0 Pa。");
+        if (TerminalResultStablePolls is < 1 or > 10) throw new InvalidDataException("设备完成结果的连续确认次数必须在 1–10 次之间。");
+        if (ManualStartWaitTimeoutSeconds is < 10 or > 3600) throw new InvalidDataException("等待设备面板启动超时必须在 10–3600 秒之间。");
+        _ = GetTerminalResultCodes();
         if (!Enum.IsDefined(CountingMode)) throw new InvalidDataException("统计模式无效。");
         if (!Enum.IsDefined(ScanMode)) throw new InvalidDataException("扫码模式无效。");
         if (ScannerWaitTimeoutSeconds is < 1 or > 600) throw new InvalidDataException("扫码等待超时必须在 1–600 秒之间。");
@@ -59,6 +73,21 @@ public sealed class AirtightnessConfiguration
             throw new InvalidDataException("当前气密仪与动作模块使用独立串口连接，请为动作控制模块选择不同于气密仪的串口号。");
         ValidateDirectory(RecordsDirectory, "测试记录保存路径");
         ValidateDirectory(LogDirectory, "日志保存路径");
+    }
+
+    /// <summary>读取配置的设备终止结果码；空集合表示禁用结果码提前结束。</summary>
+    public HashSet<ushort> GetTerminalResultCodes()
+    {
+        var codes = new HashSet<ushort>();
+        if (string.IsNullOrWhiteSpace(TerminalResultCodes)) return codes;
+
+        foreach (var item in TerminalResultCodes.Split([',', '，', ';', '；', ' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!ushort.TryParse(item, out var code))
+                throw new InvalidDataException($"设备完成结果码“{item}”无效，请填写 0–65535 的整数，并用逗号分隔。");
+            codes.Add(code);
+        }
+        return codes;
     }
 
     private static void ValidateDirectory(string? directory, string label)
@@ -77,15 +106,21 @@ public sealed class AirtightnessMotionConfiguration
 {
     /// <summary>关闭时上位机绝不发送继电器开关命令。</summary>
     public bool Enabled { get; set; }
-    /// <summary>仅在明确启用后，CH1/CH2 两个条码齐全时自动开启两个动作输出。</summary>
+    /// <summary>手动/不扫码调试时跳过 I/O 继电器，等待操作员在仪器面板按 Start。</summary>
+    public bool SkipRelayControlForManualTest { get; set; }
+    /// <summary>保留旧版配置兼容；条码齐全后由启动输入触发本轮测试，不再提前开启输出。</summary>
     public bool AutoOpenAfterBarcode { get; set; }
     public string PortName { get; set; } = "COM12";
     public int BaudRate { get; set; } = 38400;
     public byte StationAddress { get; set; } = 2;
     public int TimeoutMilliseconds { get; set; } = 1000;
-    /// <summary>数字量模块的 Y 输出编号，1 对应协议线圈 0000H。</summary>
+    /// <summary>数字量模块的 Y 输出编号，1 对应厂家网页的保持寄存器 0000H。</summary>
     public int Channel1Output { get; set; } = 1;
     public int Channel2Output { get; set; } = 2;
+    /// <summary>触发本轮测试的 X 输入编号，X1 对应厂家网页的输入寄存器 0000H。</summary>
+    public int StartInput { get; set; } = 1;
+    /// <summary>收到测试结果后，保持 Y 输出吸合再断开的时间。</summary>
+    public decimal OutputReleaseDelaySeconds { get; set; } = 2;
 
     public void Validate()
     {
@@ -93,8 +128,10 @@ public sealed class AirtightnessMotionConfiguration
         if (BaudRate <= 0) throw new InvalidDataException("动作控制模块波特率必须大于 0。");
         if (StationAddress is 0) throw new InvalidDataException("动作控制模块站号必须为 1–247。");
         if (TimeoutMilliseconds is < 200 or > 30000) throw new InvalidDataException("动作控制模块超时必须在 200–30000 ms 之间。");
-        if (Channel1Output is < 1 or > 72 || Channel2Output is < 1 or > 72 || Channel1Output == Channel2Output)
-            throw new InvalidDataException("CH1、CH2 输出编号必须在 1–72 之间且不能相同。");
+        if (Channel1Output is < 1 or > 48 || Channel2Output is < 1 or > 48 || Channel1Output == Channel2Output)
+            throw new InvalidDataException("按厂家新协议，CH1、CH2 输出编号必须在 1–48 之间且不能相同。");
+        if (StartInput is < 1 or > 48) throw new InvalidDataException("按厂家新协议，启动输入编号必须在 1–48 之间。");
+        if (OutputReleaseDelaySeconds is < 0 or > 600) throw new InvalidDataException("测试结束后输出保持时间必须在 0–600 秒之间。");
     }
 }
 

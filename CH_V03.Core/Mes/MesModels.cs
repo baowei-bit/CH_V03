@@ -59,6 +59,7 @@ public sealed class MesCheckRequest
 
 public sealed class MesUploadRequest
 {
+    public string PrecheckStatus { get; init; } = string.Empty;
     public string Barcode { get; init; } = string.Empty;
 
     public string ProdNo { get; init; } = string.Empty;

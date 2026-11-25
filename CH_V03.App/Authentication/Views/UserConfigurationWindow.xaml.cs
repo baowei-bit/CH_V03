@@ -14,7 +14,8 @@ public partial class UserConfigurationWindow : Window
 
     private void TestPieceMode_Checked(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded || DataContext is not UserConfigurationViewModel viewModel || sender is not RadioButton { IsChecked: true })
+        if (!IsLoaded || DataContext is not UserConfigurationViewModel viewModel || !viewModel.ShowJiaLianYiSpecialModes
+            || sender is not RadioButton { IsChecked: true })
         {
             return;
         }
@@ -49,7 +50,7 @@ public partial class UserConfigurationWindow : Window
         viewModel.IsStandardPieceMode = true;
         if (prompt.DialogResult == true)
         {
-            MessageBox.Show(this, "密码错误，已保留标准片模式。", "生产模式验证", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, CH_V03.App.Localization.UiLanguage.Text("密码错误，已保留标准片模式。"), CH_V03.App.Localization.UiLanguage.Text("生产模式验证"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 }

@@ -14,7 +14,7 @@
                     <Button Content="保存并启用内窥镜扫码" Height="36" Background="#0284C7" Foreground="White" Click="SaveButton_Click" />
                     <Button Content="取消" Height="34" Margin="0,8,0,0" Click="CancelButton_Click" />
                 </StackPanel>
-                <StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
                     <TextBlock Text="内窥镜参数" FontSize="18" FontWeight="SemiBold" Foreground="#0F4C81" Margin="0,0,0,18" />
                     <TextBlock Text="视频设备" Foreground="#52606D" /><ComboBox x:Name="CameraDeviceBox" DisplayMemberPath="Name" SelectedValuePath="Index" Margin="0,5,0,5" SelectionChanged="CameraDeviceBox_SelectionChanged" />
                     <TextBlock Text="摄像头编号（高级设置）" FontSize="11" Foreground="#64748B" /><TextBox x:Name="CameraIndexBox" Margin="0,4,0,12" Text="0" />
@@ -22,15 +22,22 @@
                     <Grid Margin="0,5,0,12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBox x:Name="WidthBox" Grid.Column="0" /><TextBlock Grid.Column="1" Text="×" HorizontalAlignment="Center" VerticalAlignment="Center"/><TextBox x:Name="HeightBox" Grid.Column="2" /></Grid>
                     <TextBlock Text="帧率 (FPS)" Foreground="#52606D" /><TextBox x:Name="FrameRateBox" Margin="0,5,0,12" />
                     <TextBlock Text="单次识码等待 (ms)" Foreground="#52606D" /><TextBox x:Name="ScanTimeoutBox" Margin="0,5,0,12" />
+                    <TextBlock Text="NoRead 原始帧保存目录" Foreground="#52606D" />
+                    <Grid Margin="0,5,0,8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="64"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="NoReadDirectoryBox" Grid.Column="0" VerticalContentAlignment="Center" />
+                        <Button Grid.Column="1" Content="选择…" Margin="6,0,0,0" Click="BrowseNoReadDirectory_Click" />
+                    </Grid>
+                    <TextBlock Text="在右侧画面拖动鼠标框选码区。保存后正式扫码先识别选区，失败再识别整幅画面。" TextWrapping="Wrap" Foreground="#52606D" Margin="0,0,0,6" />
+                    <Button Content="清除识别区域（使用全图）" Click="ClearRoiButton_Click" Margin="0,0,0,12" />
                     <Border Background="#F0F9FF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="10"><StackPanel><TextBlock Text="说明" FontWeight="SemiBold" Foreground="#0F4C81" /><TextBlock Text="Supereyes 请以 USB 摄像头接入。打开本页前请关闭原厂 Supereyes 程序，避免设备被占用。" TextWrapping="Wrap" Foreground="#52606D" Margin="0,5,0,0" /></StackPanel></Border>
-                </StackPanel>
+                </StackPanel></ScrollViewer>
             </DockPanel>
         </Border>
         <Border Grid.Column="2" Background="#0F172A" CornerRadius="8" Padding="12">
             <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" x:Name="StatusText" Text="正在连接内窥镜…" Foreground="White" FontWeight="SemiBold" Margin="4,0,4,10" />
-                <Grid Grid.Row="1"><Image x:Name="PreviewImage" Stretch="Uniform"/><TextBlock x:Name="PreviewHint" Text="暂无画面" Foreground="#94A3B8" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" /></Grid>
-                <Border Grid.Row="2" Background="#164E63" CornerRadius="5" Padding="10" Margin="0,10,0,0"><StackPanel Orientation="Horizontal"><TextBlock Text="最近识别：" Foreground="#BAE6FD"/><TextBlock x:Name="LastResultText" Text="—" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /></StackPanel></Border>
+                <Grid Grid.Row="1" x:Name="PreviewHost" Background="Transparent" SizeChanged="PreviewHost_SizeChanged" MouseLeftButtonDown="PreviewHost_MouseLeftButtonDown" MouseMove="PreviewHost_MouseMove" MouseLeftButtonUp="PreviewHost_MouseLeftButtonUp"><Image x:Name="PreviewImage" Stretch="Uniform" IsHitTestVisible="False"/><TextBlock x:Name="PreviewHint" Text="暂无画面" Foreground="#94A3B8" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" /><Canvas x:Name="RoiOverlay" IsHitTestVisible="False"><Rectangle x:Name="RoiRectangle" Stroke="#22C55E" StrokeThickness="2" Fill="#3022C55E" Visibility="Collapsed" /></Canvas></Grid>
+                <Border Grid.Row="2" Background="#164E63" CornerRadius="5" Padding="10" Margin="0,10,0,0"><StackPanel><StackPanel Orientation="Horizontal"><TextBlock Text="最近识别：" Foreground="#BAE6FD"/><TextBlock x:Name="LastResultText" Text="—" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /></StackPanel><TextBlock x:Name="QualityHintText" Foreground="#E0F2FE" TextWrapping="Wrap" Margin="0,5,0,0" /></StackPanel></Border>
             </Grid>
         </Border>
     </Grid>

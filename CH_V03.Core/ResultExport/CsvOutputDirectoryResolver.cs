@@ -4,9 +4,11 @@ namespace CH_V03.Core.ResultExport;
 
 internal static class CsvOutputDirectoryResolver
 {
-    public static string Resolve(AppConfiguration configuration, bool isPass)
+    public static string Resolve(AppConfiguration configuration, bool isPass, string? configuredDirectory = null)
     {
-        var directory = configuration.Output.CsvDirectory;
+        var directory = string.IsNullOrWhiteSpace(configuredDirectory)
+            ? configuration.Output.CsvDirectory
+            : configuredDirectory.Trim();
         if (!configuration.Output.ClassifyCsvByResult)
         {
             return directory;

@@ -92,7 +92,9 @@ public sealed class CommunicationConfigurationViewModel : DialogViewModelBase
     private async Task TestLowerMachineAsync()
     {
         var result = await _communicationTestService.TestAsync(Configuration.Communication.LowerMachine);
-        LowerMachineTestMessage = result.Message;
+        LowerMachineTestMessage = result.IsSuccess && Configuration.Communication.LowerMachine.ConnectionType != ConnectionType.Disabled
+            ? $"{result.Message}；这里只验证端口能打开。主界面连接时按选中的 IsOpen 或 Itemnum 方式握手，两者互斥；都未勾选时以端口打开为准。"
+            : result.Message;
     }
 
     private static string[] GetSerialPortNames()

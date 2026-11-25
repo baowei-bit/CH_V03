@@ -99,7 +99,17 @@ public sealed class DefaultIctProtocolAdapter : ITestProtocolAdapter
             {
                 var valueParts = parts[1].Split(':', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
                 value = valueParts.ElementAtOrDefault(1) ?? value;
-                (pointA, pointB) = ParsePointPair(valueParts.ElementAtOrDefault(0) ?? string.Empty);
+                var pointDetails = valueParts.ElementAtOrDefault(0) ?? string.Empty;
+                if (pointDetails.Contains('&') && pointDetails.Contains('-'))
+                {
+                    // 新格式把复合点位写在结果第二字段；显示左侧点位和测量值，
+                    // 保留 Item 表头中的点位 A/B，不用 NA&NA 覆盖它们。
+                    value = $"{pointDetails.Split('-', 2)[0]}:{value}";
+                }
+                else
+                {
+                    (pointA, pointB) = ParsePointPair(pointDetails);
+                }
             }
 
             results.Add(new ParsedTestResult(index, string.Empty, value, result, pointA, pointB));

@@ -9,6 +9,7 @@
     <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.SuzhouWeiXin\CH_V03.Mes.SuzhouWeiXin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.Bomin\CH_V03.Mes.Bomin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.YiDongEap\CH_V03.Mes.YiDongEap.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.JingWang\CH_V03.Mes.JingWang.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.HuaQin\CH_V03.Mes.HuaQin.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V03.Plugins\Export\CH_V03.Export.JiaLianYi\CH_V03.Export.JiaLianYi.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\CH_V03.Plugins\Export\CH_V03.Export.SuzhouJiaLianYiLuEnZe\CH_V03.Export.SuzhouJiaLianYiLuEnZe.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
@@ -34,7 +35,7 @@
     <ApplicationIcon>Assets\company-icon.ico</ApplicationIcon>
     <AssemblyName>CeHao</AssemblyName>
     <Product>CeHao</Product>
-    <Version>3.0.0</Version>
+    <Version>3.0.60</Version>
     <!-- AssemblyVersion 与 FileVersion 由 Version 自动派生，避免多处维护。 -->
     <VersionLabel>CH_V$([System.Version]::Parse('$(Version)').Major.ToString('00')).$([System.Version]::Parse('$(Version)').Build.ToString('00'))</VersionLabel>
     <VersionedBuildDirectory>$(MSBuildProjectDirectory)\..\..\release\$(VersionLabel)\</VersionedBuildDirectory>
@@ -43,7 +44,12 @@
   <ItemGroup>
     <Resource Include="Assets\company-logo.png" />
     <Resource Include="Assets\company-icon.png" />
-    <Resource Include="Assets\company-logo-full.jpg" />
+    <Resource Include="Assets\company-logo-full.jpg" /> 
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Localization\en-US.json" LogicalName="CeHao.Localization.en-US.json" />
+    <EmbeddedResource Include="Localization\help-history.en.txt" LogicalName="CeHao.Localization.help-history.en.txt" WithCulture="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -77,15 +83,28 @@
       <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.SuzhouWeiXin\bin\$(Configuration)\net8.0\CH_V03.Mes.SuzhouWeiXin.dll" />
       <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.Bomin\bin\$(Configuration)\net8.0\CH_V03.Mes.Bomin.dll" />
       <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.YiDongEap\bin\$(Configuration)\net8.0\CH_V03.Mes.YiDongEap.dll" />
-      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.HuaQin\bin\$(Configuration)\net8.0\CH_V03.Mes.HongXin.dll" />
+      <!-- 复制插件的完整运行依赖，避免只带 MySqlConnector 而遗漏其日志等间接依赖。Core 由宿主共享。 -->
+      <MesPluginFiles Include="..\CH_V03.Plugins\Mes\CH_V03.Mes.JingWang\bin\$(Configuration)\net8.0\*.dll;..\CH_V03.Plugins\Mes\CH_V03.Mes.JingWang\bin\$(Configuration)\net8.0\CH_V03.Mes.JingWang.deps.json"
+                      Exclude="..\CH_V03.Plugins\Mes\CH_V03.Mes.JingWang\bin\$(Configuration)\net8.0\CH_V03.Core.dll" />
     </ItemGroup>
-    <MakeDir Directories="$(OutputPath)plugins\mes" />
+    <MSBuild Projects="..\CH_V03.Plugins\Mes\CH_V03.Mes.HuaQin\CH_V03.Mes.HuaQin.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="HongXinPluginTarget" />
+    </MSBuild>
+    <ItemGroup>
+      <MesPluginFiles Include="@(HongXinPluginTarget)" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutputPath)plugins\.plugin-library\mes" />
+    <MakeDir Directories="$(OutputPath)plugins\mes" Condition="'$(Configuration)' == 'Release'" />
     <ItemGroup>
       <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\BW_V01.*.dll" />
       <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\CH_V03.Mes.HuaQin.dll" />
+      <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\CH_V03.Mes.*.dll" />
+      <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\CareerRule.dll" />
+      <StaleMesPluginFiles Include="$(OutputPath)plugins\mes\Newtonsoft.Json.dll" />
     </ItemGroup>
-    <Delete Files="@(StaleMesPluginFiles)" />
-    <Copy SourceFiles="@(MesPluginFiles)" DestinationFolder="$(OutputPath)plugins\mes" SkipUnchangedFiles="true" Condition="Exists('%(MesPluginFiles.Identity)')" />
+    <Delete Files="@(StaleMesPluginFiles)" Condition="'$(Configuration)' == 'Release'" />
+    <Copy SourceFiles="@(MesPluginFiles)" DestinationFolder="$(OutputPath)plugins\.plugin-library\mes" SkipUnchangedFiles="true" Condition="Exists('%(MesPluginFiles.Identity)')" />
+    <Exec Command="attrib +h &quot;$(OutputPath)plugins\.plugin-library&quot;" Condition="'$(OS)' == 'Windows_NT'" />
   </Target>
 
   <Target Name="CopyExportPlugins" AfterTargets="Build">
@@ -96,12 +115,16 @@
       <ExportPluginFiles Include="..\CH_V03.Plugins\Export\CH_V03.Export.Bomin\bin\$(Configuration)\net8.0\CH_V03.Export.Bomin.dll" />
       <ExportPluginFiles Include="..\CH_V03.Plugins\Export\CH_V03.Export.YiDongEap\bin\$(Configuration)\net8.0\CH_V03.Export.YiDongEap.dll" />
     </ItemGroup>
-    <MakeDir Directories="$(OutputPath)plugins\export" />
+    <MakeDir Directories="$(OutputPath)plugins\.plugin-library\export" />
+    <MakeDir Directories="$(OutputPath)plugins\export" Condition="'$(Configuration)' == 'Release'" />
     <ItemGroup>
       <StaleExportPluginFiles Include="$(OutputPath)plugins\export\BW_V01.*.dll" />
+      <StaleExportPluginFiles Include="$(OutputPath)plugins\export\CH_V03.Export.*.dll" />
     </ItemGroup>
-    <Delete Files="@(StaleExportPluginFiles)" />
-    <Copy SourceFiles="@(ExportPluginFiles)" DestinationFolder="$(OutputPath)plugins\export" SkipUnchangedFiles="true" Condition="Exists('%(ExportPluginFiles.Identity)')" />
+    <Delete Files="@(StaleExportPluginFiles)" Condition="'$(Configuration)' == 'Release'" />
+    <Copy SourceFiles="@(ExportPluginFiles)" DestinationFolder="$(OutputPath)plugins\.plugin-library\export" SkipUnchangedFiles="true" Condition="Exists('%(ExportPluginFiles.Identity)')" />
+    <Copy SourceFiles="@(ExportPluginFiles)" DestinationFolder="$(OutputPath)plugins\export" SkipUnchangedFiles="true" Condition="'$(Configuration)' == 'Release' And Exists('%(ExportPluginFiles.Identity)')" />
+    <Exec Command="attrib +h &quot;$(OutputPath)plugins\.plugin-library&quot;" Condition="'$(OS)' == 'Windows_NT'" />
   </Target>
 
   <!--
@@ -109,26 +132,40 @@
     例如 Version=3.0.1 时，目录为 release\CH_V03.01。
     CeHao.exe 保持固定名称，避免影响现有更新程序和现场快捷方式。
   -->
-  <Target Name="CopyVersionedBuildOutput" AfterTargets="CopyExportPlugins">
+  <Target Name="CopyVersionedBuildOutput" AfterTargets="Build" DependsOnTargets="CopyMesPlugins;CopyExportPlugins" Condition="'$(Configuration)' == 'Release'">
     <ItemGroup>
       <VersionedBuildFiles Include="$(TargetDir)**\*" />
+      <StaleVersionedMesPluginFiles Include="$(VersionedBuildDirectory)plugins\mes\BW_V01.*.dll" />
+      <StaleVersionedMesPluginFiles Include="$(VersionedBuildDirectory)plugins\mes\CH_V03.Mes.*.dll" />
+      <StaleVersionedMesPluginFiles Include="$(VersionedBuildDirectory)plugins\mes\CareerRule.dll" />
+      <StaleVersionedMesPluginFiles Include="$(VersionedBuildDirectory)plugins\mes\Newtonsoft.Json.dll" />
+      <StaleVersionedExportPluginFiles Include="$(VersionedBuildDirectory)plugins\export\BW_V01.*.dll" />
+      <StaleVersionedExportPluginFiles Include="$(VersionedBuildDirectory)plugins\export\CH_V03.Export.*.dll" />
     </ItemGroup>
     <MakeDir Directories="$(VersionedBuildDirectory)" />
+    <Delete Files="@(StaleVersionedMesPluginFiles);@(StaleVersionedExportPluginFiles)" />
     <Copy SourceFiles="@(VersionedBuildFiles)"
           DestinationFiles="@(VersionedBuildFiles->'$(VersionedBuildDirectory)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <VersionedActiveExportPluginFiles Include="$(OutputPath)plugins\export\CH_V03.Export.*.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(VersionedBuildDirectory)plugins\export;$(VersionedBuildDirectory)plugins\.plugin-library\export" />
+    <Copy SourceFiles="@(VersionedActiveExportPluginFiles)" DestinationFolder="$(VersionedBuildDirectory)plugins\export" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="@(VersionedActiveExportPluginFiles)" DestinationFolder="$(VersionedBuildDirectory)plugins\.plugin-library\export" SkipUnchangedFiles="false" />
+    <Exec Command="attrib +h &quot;$(VersionedBuildDirectory)plugins\.plugin-library&quot;" Condition="'$(OS)' == 'Windows_NT'" />
     <Message Importance="high" Text="已生成版本构建目录：$(VersionedBuildDirectory)" />
   </Target>
 
-  <Target Name="CopyPluginsToPublishOutput" AfterTargets="Publish">
+  <Target Name="CopyPluginsToPublishOutput" AfterTargets="Publish" DependsOnTargets="CopyMesPlugins;CopyExportPlugins">
     <ItemGroup>
-      <MesPluginPublishFiles Include="$(TargetDir)plugins\mes\*.dll" />
-      <ExportPluginPublishFiles Include="$(TargetDir)plugins\export\*.dll" />
+      <MesPluginPublishFiles Include="$(TargetDir)plugins\.plugin-library\mes\*.dll;$(TargetDir)plugins\.plugin-library\mes\*.deps.json" />
+      <ExportPluginPublishFiles Include="$(TargetDir)plugins\.plugin-library\export\*.dll" />
     </ItemGroup>
-    <MakeDir Directories="$(PublishDir)plugins\mes" />
-    <MakeDir Directories="$(PublishDir)plugins\export" />
-    <Copy SourceFiles="@(MesPluginPublishFiles)" DestinationFolder="$(PublishDir)plugins\mes" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(ExportPluginPublishFiles)" DestinationFolder="$(PublishDir)plugins\export" SkipUnchangedFiles="true" />
+    <MakeDir Directories="$(PublishDir)plugins\.plugin-library\mes;$(PublishDir)plugins\.plugin-library\export;$(PublishDir)plugins\mes;$(PublishDir)plugins\export" />
+    <Copy SourceFiles="@(MesPluginPublishFiles)" DestinationFolder="$(PublishDir)plugins\.plugin-library\mes" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ExportPluginPublishFiles)" DestinationFolder="$(PublishDir)plugins\.plugin-library\export" SkipUnchangedFiles="true" />
+    <Exec Command="attrib +h &quot;$(PublishDir)plugins\.plugin-library&quot;" Condition="'$(OS)' == 'Windows_NT'" />
   </Target>
 
   <Target Name="CopyUpdaterToPublishOutput" AfterTargets="Publish">

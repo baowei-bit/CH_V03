@@ -20,7 +20,10 @@ public partial class AirtightnessMotionControlWindow : Window
         Timeout.Text = c.TimeoutMilliseconds.ToString(CultureInfo.InvariantCulture);
         Channel1Output.Text = c.Channel1Output.ToString(CultureInfo.InvariantCulture);
         Channel2Output.Text = c.Channel2Output.ToString(CultureInfo.InvariantCulture);
+        StartInput.Text = c.StartInput.ToString(CultureInfo.InvariantCulture);
+        OutputReleaseDelay.Text = c.OutputReleaseDelaySeconds.ToString(CultureInfo.InvariantCulture);
         Enabled.IsChecked = c.Enabled;
+        SkipRelayControlForManualTest.IsChecked = c.SkipRelayControlForManualTest;
         AutoOpenAfterBarcode.IsChecked = c.AutoOpenAfterBarcode;
         RefreshConnectionState();
     }
@@ -28,15 +31,16 @@ public partial class AirtightnessMotionControlWindow : Window
     private static int Integer(string value, string label) => int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : throw new FormatException($"{label}请输入整数。");
     private void RefreshConnectionState()
     {
-        ConnectionState.Text = _model.IsMotionConnected ? "I/O 模块已连接" : "I/O 模块未连接";
+        ConnectionState.Text = _model.IsMotionConnected ? "下位机已连接" : "下位机未连接";
         ConnectionState.Foreground = _model.IsMotionConnected ? System.Windows.Media.Brushes.ForestGreen : System.Windows.Media.Brushes.SlateGray;
-        ConnectionButton.Content = _model.IsMotionConnected ? "断开 I/O 模块" : "连接 I/O 模块";
+        ConnectionButton.Content = _model.IsMotionConnected ? "断开下位机" : "连接下位机";
     }
 
     private AirtightnessMotionConfiguration BuildConfiguration()
     {
         var value = ConfigurationStore.Clone(_model.Configuration.Motion);
         value.Enabled = Enabled.IsChecked == true;
+        value.SkipRelayControlForManualTest = SkipRelayControlForManualTest.IsChecked == true;
         value.AutoOpenAfterBarcode = AutoOpenAfterBarcode.IsChecked == true;
         value.PortName = Port.Text.Trim();
         value.BaudRate = Integer(Baud.Text, "波特率");
@@ -46,6 +50,10 @@ public partial class AirtightnessMotionControlWindow : Window
         value.TimeoutMilliseconds = Integer(Timeout.Text, "通讯超时");
         value.Channel1Output = Integer(Channel1Output.Text, "CH1 输出编号");
         value.Channel2Output = Integer(Channel2Output.Text, "CH2 输出编号");
+        value.StartInput = Integer(StartInput.Text, "启动输入编号");
+        if (!decimal.TryParse(OutputReleaseDelay.Text.Trim(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var releaseDelay))
+            throw new FormatException("测试结束后 Y 保持时间请输入有效秒数。");
+        value.OutputReleaseDelaySeconds = releaseDelay;
         value.Validate();
         return value;
     }
@@ -54,9 +62,9 @@ public partial class AirtightnessMotionControlWindow : Window
     {
         try
         {
-            if (_model.IsMotionConnected) throw new InvalidOperationException("请先断开 I/O 模块，再修改动作控制通讯或输出映射。");
+            if (_model.IsMotionConnected) throw new InvalidOperationException("请先断开下位机，再修改下位机通讯或输出映射。");
             _model.SaveMotionConfiguration(BuildConfiguration());
-            Error.Text = "动作设置已保存。连接模块后可进行 CH1 / CH2 人工开关验证。";
+            Error.Text = "下位机设置已保存。连接下位机后可进行 CH1 / CH2 人工开关验证。";
             Error.Foreground = System.Windows.Media.Brushes.ForestGreen;
         }
         catch (Exception exception) { Error.Foreground = System.Windows.Media.Brushes.Firebrick; Error.Text = exception.Message; }

@@ -18,6 +18,9 @@ internal sealed class CameraQrDeviceConnection : IDeviceConnection
     public event EventHandler<DeviceDataReceivedEventArgs>? DataReceived;
     public string Name { get; }
     public bool IsOpen => _service.IsOpen;
+    public string LastQualityAdvice => _service.LastQualityAdvice;
+    public string LastNoReadFramePath => _service.LastNoReadFramePath;
+    public string LastNoReadSaveError => _service.LastNoReadSaveError;
 
     public Task OpenAsync(CancellationToken cancellationToken = default) => _service.OpenAsync(cancellationToken);
     public Task CloseAsync(CancellationToken cancellationToken = default) => _service.CloseAsync(cancellationToken);

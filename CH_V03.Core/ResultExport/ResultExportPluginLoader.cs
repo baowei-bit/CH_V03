@@ -47,11 +47,15 @@ public sealed class ResultExportPluginLoader
     private sealed class ExportPluginLoadContext : AssemblyLoadContext
     {
         private readonly AssemblyDependencyResolver _resolver;
+        private readonly string _pluginLibraryDirectory;
 
         public ExportPluginLoadContext(string pluginPath)
             : base(Path.GetFileNameWithoutExtension(pluginPath), isCollectible: false)
         {
             _resolver = new AssemblyDependencyResolver(pluginPath);
+            var activePluginDirectory = Path.GetDirectoryName(pluginPath) ?? string.Empty;
+            var pluginsDirectory = Directory.GetParent(activePluginDirectory)?.FullName ?? string.Empty;
+            _pluginLibraryDirectory = Path.Combine(pluginsDirectory, ".plugin-library", Path.GetFileName(activePluginDirectory));
         }
 
         protected override Assembly? Load(AssemblyName assemblyName)
@@ -64,13 +68,25 @@ public sealed class ResultExportPluginLoader
             }
 
             var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
-            return assemblyPath is null ? null : LoadFromAssemblyPath(assemblyPath);
+            if (assemblyPath is not null)
+            {
+                return LoadFromAssemblyPath(assemblyPath);
+            }
+
+            var libraryAssemblyPath = Path.Combine(_pluginLibraryDirectory, $"{assemblyName.Name}.dll");
+            return File.Exists(libraryAssemblyPath) ? LoadFromAssemblyPath(libraryAssemblyPath) : null;
         }
 
         protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
         {
             var libraryPath = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-            return libraryPath is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(libraryPath);
+            if (libraryPath is not null)
+            {
+                return LoadUnmanagedDllFromPath(libraryPath);
+            }
+
+            var libraryNativePath = Path.Combine(_pluginLibraryDirectory, unmanagedDllName);
+            return File.Exists(libraryNativePath) ? LoadUnmanagedDllFromPath(libraryNativePath) : IntPtr.Zero;
         }
     }
 }

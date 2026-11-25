@@ -14,9 +14,17 @@ public sealed class PressureWaveform : FrameworkElement
     public static readonly DependencyProperty SamplesProperty = DependencyProperty.Register(nameof(Samples), typeof(ObservableCollection<PressureSample>), typeof(PressureWaveform), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnSamplesChanged));
     public static readonly DependencyProperty DurationProperty = DependencyProperty.Register(nameof(Duration), typeof(double), typeof(PressureWaveform), new FrameworkPropertyMetadata(12d, FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty MaximumProperty = DependencyProperty.Register(nameof(Maximum), typeof(double), typeof(PressureWaveform), new FrameworkPropertyMetadata(35d, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty FillSecondsProperty = DependencyProperty.Register(nameof(FillSeconds), typeof(double), typeof(PressureWaveform), new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty BalanceSecondsProperty = DependencyProperty.Register(nameof(BalanceSeconds), typeof(double), typeof(PressureWaveform), new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty TestSecondsProperty = DependencyProperty.Register(nameof(TestSeconds), typeof(double), typeof(PressureWaveform), new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ExhaustSecondsProperty = DependencyProperty.Register(nameof(ExhaustSeconds), typeof(double), typeof(PressureWaveform), new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
     public ObservableCollection<PressureSample>? Samples { get => (ObservableCollection<PressureSample>?)GetValue(SamplesProperty); set => SetValue(SamplesProperty, value); }
     public double Duration { get => (double)GetValue(DurationProperty); set => SetValue(DurationProperty, value); }
     public double Maximum { get => (double)GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
+    public double FillSeconds { get => (double)GetValue(FillSecondsProperty); set => SetValue(FillSecondsProperty, value); }
+    public double BalanceSeconds { get => (double)GetValue(BalanceSecondsProperty); set => SetValue(BalanceSecondsProperty, value); }
+    public double TestSeconds { get => (double)GetValue(TestSecondsProperty); set => SetValue(TestSecondsProperty, value); }
+    public double ExhaustSeconds { get => (double)GetValue(ExhaustSecondsProperty); set => SetValue(ExhaustSecondsProperty, value); }
     private static void OnSamplesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var chart = (PressureWaveform)d;
@@ -27,7 +35,7 @@ public sealed class PressureWaveform : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
-        var plot = new Rect(58, 22, Math.Max(1, ActualWidth - 78), Math.Max(1, ActualHeight - 52));
+        var plot = new Rect(58, 38, Math.Max(1, ActualWidth - 78), Math.Max(1, ActualHeight - 68));
         var max = double.IsFinite(Maximum) && Maximum > 0 ? Maximum : 35;
         var duration = double.IsFinite(Duration) && Duration > 0 ? Duration : 12;
         var muted = new SolidColorBrush(Color.FromRgb(100, 116, 139));
@@ -40,11 +48,38 @@ public sealed class PressureWaveform : FrameworkElement
             dc.DrawLine(grid, new Point(plot.Left, y), new Point(plot.Right, y));
             Label((max * i / 4).ToString("0.#"), 4, y - 7);
         }
-        for (var i = 0; i <= 6; i++)
+        var stages = new[]
         {
-            var x = plot.Left + plot.Width * i / 6;
-            dc.DrawLine(grid, new Point(x, plot.Top), new Point(x, plot.Bottom));
-            Label((duration * i / 6).ToString("0.#"), x - 8, plot.Bottom + 5);
+            (Name: "充气", Seconds: Math.Max(0, FillSeconds)),
+            (Name: "平衡", Seconds: Math.Max(0, BalanceSeconds)),
+            (Name: "测试", Seconds: Math.Max(0, TestSeconds)),
+            (Name: "泄气", Seconds: Math.Max(0, ExhaustSeconds))
+        };
+        var stageTotal = stages.Sum(stage => stage.Seconds);
+        if (stageTotal > 0 && Math.Abs(stageTotal - duration) < 0.01)
+        {
+            var stageLine = new Pen(new SolidColorBrush(Color.FromRgb(125, 211, 252)), 1) { DashStyle = DashStyles.Dash };
+            var seconds = 0d;
+            foreach (var stage in stages)
+            {
+                var start = seconds;
+                seconds += stage.Seconds;
+                var startX = plot.Left + plot.Width * start / duration;
+                var endX = plot.Left + plot.Width * seconds / duration;
+                if (start > 0) dc.DrawLine(stageLine, new Point(startX, plot.Top), new Point(startX, plot.Bottom));
+                Label($"{stage.Name} {stage.Seconds:0.#} s", Math.Max(plot.Left, (startX + endX) / 2 - 23), 18);
+                Label(start.ToString("0.#"), startX - 8, plot.Bottom + 5);
+            }
+            Label(duration.ToString("0.#"), plot.Right - 8, plot.Bottom + 5);
+        }
+        else
+        {
+            for (var i = 0; i <= 6; i++)
+            {
+                var x = plot.Left + plot.Width * i / 6;
+                dc.DrawLine(grid, new Point(x, plot.Top), new Point(x, plot.Bottom));
+                Label((duration * i / 6).ToString("0.#"), x - 8, plot.Bottom + 5);
+            }
         }
         Label("时间 / s", Math.Max(plot.Left, plot.Right - 50), 0);
         if (Samples is not { Count: > 0 }) { Label("等待测试数据 · 点击“模拟测试”预览波形", plot.Left + 12, plot.Top + plot.Height / 2); return; }

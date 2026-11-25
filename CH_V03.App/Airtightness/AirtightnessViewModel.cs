@@ -12,6 +12,7 @@ namespace CH_V03.App.Airtightness;
 
 public sealed class AirtightnessViewModel : ViewModelBase
 {
+    private const int MotionCommandMaxAttempts = 3;
     private readonly AirtightnessStore _store;
     private AirtightnessResultStore _results;
     private readonly RuntimeLogWriter _logWriter = new();
@@ -22,9 +23,15 @@ public sealed class AirtightnessViewModel : ViewModelBase
     private bool _motionTriggeredForBarcodePair;
     private CancellationTokenSource? _scannerWaitCancellation;
     private CancellationTokenSource? _instrumentTestCancellation;
+    private Task? _instrumentTestTask;
+    private bool _isDisconnectingInstrument;
+    private bool _manualStopRequested;
+    private bool _isInstrumentRecovering;
+    private bool _continuousInstrumentMonitoringEnabled;
+    private DateTime _lastDiagnosticLogAt = DateTime.MinValue;
     private bool _automaticScanRunning;
-    private bool _scanStartRequested;
     public ObservableCollection<string> Logs { get; } = new();
+    public event Action? TestCycleCompleted;
     public string LogDirectory => _store.GetLogDirectory(Configuration);
     public string RecordsDirectory => _store.GetRecordsDirectory(Configuration);
     public UserSession Session { get; }
@@ -32,13 +39,15 @@ public sealed class AirtightnessViewModel : ViewModelBase
     public AirtightnessStatistics Statistics { get; private set; } = new(0, 0, 0, 0, 0, 0);
     public string WindowTitle => $"CeHao · 气密检测 · {Configuration.ProductName}";
     public string LoginDisplay => $"{Session.DisplayName} / {Session.RoleText}";
-    public bool CanConfigure => Session.CanManageSystem && !IsSimulating && !IsInstrumentTesting;
+    public bool CanConfigure => Session.CanManageSystem && !IsSimulating && !IsInstrumentTesting && !_isInstrumentRecovering;
     private CancellationTokenSource? _simulationCancellation;
     private int _simulationNumber;
     public bool IsSimulating { get; private set; }
     public bool IsInstrumentTesting { get; private set; }
-    public bool CanSwitchAccount => !IsSimulating && !IsInstrumentTesting;
-    public bool CanStartScan => !IsSimulating && !IsInstrumentTesting;
+    public bool CanSwitchAccount => !IsSimulating && !IsInstrumentTesting && !_isInstrumentRecovering;
+    public bool CanClearCurrentStatistics => !IsSimulating && !IsInstrumentTesting && !_isInstrumentRecovering;
+    public bool CanArmInstrumentTest => IsNoScanMode && IsInstrumentConnected && !IsSimulating && !IsInstrumentTesting && !_isInstrumentRecovering;
+    public bool CanStopInstrumentMonitoring => IsInstrumentTesting || _continuousInstrumentMonitoringEnabled;
     public string ScannerState { get; private set; } = "未连接";
     public string InstrumentState { get; private set; } = "未连接";
     public string MotionState { get; private set; } = "未连接";
@@ -64,17 +73,35 @@ public sealed class AirtightnessViewModel : ViewModelBase
     public string SimulationSummary { get; private set; } = "请先连接气密仪；扫码完成后可准备双通道测试。";
     public string Channel1State { get; private set; } = "WAIT";
     public string Channel2State { get; private set; } = "WAIT";
+    public string Channel1ResultForeground => ResultForeground(Channel1State);
+    public string Channel2ResultForeground => ResultForeground(Channel2State);
+    public string Channel1ResultBackground => ResultBackground(Channel1State);
+    public string Channel2ResultBackground => ResultBackground(Channel2State);
+    public string Channel1ResultBorderBrush => ResultBorderBrush(Channel1State);
+    public string Channel2ResultBorderBrush => ResultBorderBrush(Channel2State);
     public string Pressure1Text { get; private set; } = "—";
     public string Pressure2Text { get; private set; } = "—";
     public string Leak1Text { get; private set; } = "—";
     public string Leak2Text { get; private set; } = "—";
-    public double WaveformDuration => AirtightnessSimulation.Duration(Configuration);
+    public string InstrumentResult1Text { get; private set; } = "—";
+    public string InstrumentResult2Text { get; private set; } = "—";
+    public string DiagnosticChannel1 { get; private set; } = "等待连接气密仪。";
+    public string DiagnosticChannel2 { get; private set; } = "等待连接气密仪。";
+    public string DiagnosticUpdatedText { get; private set; } = "尚未读取";
+    public string DiagnosticErrorText { get; private set; } = "无";
+    public double WaveformDuration => Math.Max(20d, AirtightnessSimulation.Duration(Configuration));
     public double WaveformMaximum => (double)Configuration.MaximumPressureKpa * 1.15;
+    public double WaveformFillSeconds => (double)Configuration.FillSeconds;
+    public double WaveformBalanceSeconds => (double)Configuration.BalanceSeconds;
+    public double WaveformTestSeconds => (double)Configuration.TestSeconds;
+    public double WaveformExhaustSeconds => (double)Configuration.ExhaustSeconds;
     public ObservableCollection<PressureSample> PressureSamples { get; } = new();
     public ObservableCollection<AirtightnessHistoryRow> SimulationHistory { get; } = new();
     public string CountingModeText => Configuration.CountingMode == AirtightnessCountingMode.SeparateProducts
         ? "双产品模式 · 每个通道独立计 1 件" : "单产品模式 · 两通道共同判定 1 件";
-    public string CountingNote => "统计当前保存目录内的记录，两种模式分别累计；旧目录文件保留。";
+    public string CountingNote => Configuration.StatisticsStartAt is { } start
+        ? $"统计起点：{start.LocalDateTime:yyyy-MM-dd HH:mm:ss}；此前正式记录已保留，但不计入当前 PASS/FAIL。"
+        : "统计当前保存目录内的记录，两种模式分别累计；旧目录文件保留。";
     public string PressureRange => $"{Configuration.MinimumPressureKpa:0.##}–{Configuration.MaximumPressureKpa:0.##} kPa";
     public string FillTime => $"{Configuration.FillSeconds:0.##} s";
     public string BalanceTime => $"{Configuration.BalanceSeconds:0.##} s";
@@ -86,6 +113,9 @@ public sealed class AirtightnessViewModel : ViewModelBase
     public string Channel2Summary => $"累计 PASS {Statistics.Channel2Pass}    FAIL {Statistics.Channel2Fail}";
     public ObservableCollection<AirtightnessHistoryRow> History { get; } = new();
 
+    private static string ResultForeground(string state) => state.Contains("FAIL", StringComparison.OrdinalIgnoreCase) ? "#B91C1C" : state.Contains("PASS", StringComparison.OrdinalIgnoreCase) ? "#15803D" : "#0284C7";
+    private static string ResultBackground(string state) => state.Contains("FAIL", StringComparison.OrdinalIgnoreCase) ? "#FEE2E2" : state.Contains("PASS", StringComparison.OrdinalIgnoreCase) ? "#DCFCE7" : "#EFF6FF";
+    private static string ResultBorderBrush(string state) => state.Contains("FAIL", StringComparison.OrdinalIgnoreCase) ? "#EF4444" : state.Contains("PASS", StringComparison.OrdinalIgnoreCase) ? "#22C55E" : "#7DD3FC";
     public AirtightnessViewModel(UserSession session, AirtightnessStore store)
     {
         if (!session.IsAuthenticated || session.Module != TestModule.Airtightness)
@@ -111,12 +141,47 @@ public sealed class AirtightnessViewModel : ViewModelBase
         PressureSamples.Clear();
         Channel1State = Channel2State = "WAIT";
         Pressure1Text = Pressure2Text = Leak1Text = Leak2Text = "—";
+        InstrumentResult1Text = InstrumentResult2Text = "—";
         SimulationSummary = "配置已更新并已由气密仪回读确认；可使用模拟测试预览双通道压力变化。";
         AddLog($"气密配置已保存：产品 {Configuration.ProductName}；{CountingModeText}；气压 {PressureRange}；充气 {FillTime}，平衡 {BalanceTime}，测试 {TestTime}，泄气 {ExhaustTime}；压降 {LeakLimit}。");
         AddLog($"保存路径：测试记录 {RecordsDirectory}；日志 {LogDirectory}。");
         Refresh(records);
+
     }
 
+    /// <summary>保存产品、统计、扫码、路径与下位机策略等本地基础设置；不向气密仪下发配方。</summary>
+    public void SaveBasicConfiguration(AirtightnessConfiguration edited)
+    {
+        if (!CanConfigure) throw new UnauthorizedAccessException("当前账号无权修改基础配置。");
+        edited.Validate();
+        var results = new AirtightnessResultStore(_store.GetRecordsDirectory(edited));
+        var records = results.LoadAll();
+        _store.SaveConfiguration(edited);
+        Configuration = ConfigurationStore.Clone(edited);
+        _results = results;
+        Refresh(records);
+        AddLog($"基础配置已保存：产品 {Configuration.ProductName}；{CountingModeText}；{ScanModeText}；测试记录 {RecordsDirectory}；日志 {LogDirectory}；下位机策略{(Configuration.Motion.Enabled ? "允许上位机控制继电器" : "手动测试跳过下位机控制")}。", "信息");
+        RaiseAllPropertiesChanged();
+    }
+
+    /// <summary>从当前时刻重新开始生产统计，不删除 JSON、CSV 等正式追溯文件。</summary>
+    public void ClearCurrentStatistics()
+    {
+        if (!CanClearCurrentStatistics)
+            throw new InvalidOperationException("测试、模拟或设备恢复期间不能清除当前统计。");
+
+        var clearedPass = Statistics.Pass;
+        var clearedFail = Statistics.Fail;
+        var edited = ConfigurationStore.Clone(Configuration);
+        edited.StatisticsStartAt = DateTimeOffset.Now;
+        _store.SaveConfiguration(edited);
+        Configuration = edited;
+        Statistics = new AirtightnessStatistics(0, 0, 0, 0, 0, 0);
+        History.Clear();
+        SimulationHistory.Clear();
+        AddLog($"已清除当前生产统计：PASS {clearedPass}，FAIL {clearedFail}。正式 JSON、CSV 和此前测试记录未删除；新统计从 {edited.StatisticsStartAt.Value.LocalDateTime:yyyy-MM-dd HH:mm:ss} 开始。", "提示");
+        RaiseAllPropertiesChanged();
+    }
     public async Task SaveConfigurationToInstrumentAsync(AirtightnessConfiguration edited)
     {
         if (!CanConfigure) throw new UnauthorizedAccessException("当前账号无权修改气密配置。");
@@ -149,7 +214,29 @@ public sealed class AirtightnessViewModel : ViewModelBase
         edited.ScannerWaitTimeoutSeconds = scannerWaitTimeoutSeconds;
         _store.SaveConfiguration(edited);
         Configuration = edited;
-        AddLog($"设备连接配置已保存：扫码枪 {Configuration.Scanner.ConnectionType}，自动触发{(Configuration.ScannerTriggerEnabled ? "已启用" : "未启用")}，等待 {Configuration.ScannerWaitTimeoutSeconds} 秒；气密仪 {instrument.PortName} / {instrument.BaudRate} / 站号 {instrument.StationAddress}；动作模块 {motion.PortName} / {motion.BaudRate} / 站号 {motion.StationAddress}，CH1=Y{motion.Channel1Output}，CH2=Y{motion.Channel2Output}，输出控制{(motion.Enabled ? "已允许" : "未启用")}。", "信息");
+        AddLog($"设备连接配置已保存：扫码枪 {Configuration.Scanner.ConnectionType}，自动触发{(Configuration.ScannerTriggerEnabled ? "已启用" : "未启用")}，等待 {Configuration.ScannerWaitTimeoutSeconds} 秒；气密仪 {instrument.PortName} / {instrument.BaudRate} / 站号 {instrument.StationAddress}；下位机 {motion.PortName} / {motion.BaudRate} / 站号 {motion.StationAddress}，启动=X{motion.StartInput}，CH1=Y{motion.Channel1Output}，CH2=Y{motion.Channel2Output}，结果后保持 {motion.OutputReleaseDelaySeconds:0.###} 秒，输出控制{(motion.Enabled ? "已允许" : "未启用")}，手动跳过继电器{(motion.SkipRelayControlForManualTest ? "已启用" : "未启用")}。", "信息");
+        RaiseAllPropertiesChanged();
+    }
+
+    /// <summary>
+    /// 仅更新上位机的记录与日志保存位置，不修改也不向气密仪下发测试参数。
+    /// 用于设备尚未连接时先修复或迁移本地保存路径。
+    /// </summary>
+    public void SaveStorageDirectories(string? recordsDirectory, string? logDirectory)
+    {
+        if (!CanConfigure) throw new UnauthorizedAccessException("当前账号无权修改气密配置。");
+
+        var edited = ConfigurationStore.Clone(Configuration);
+        edited.RecordsDirectory = recordsDirectory?.Trim() ?? string.Empty;
+        edited.LogDirectory = logDirectory?.Trim() ?? string.Empty;
+        edited.Validate();
+
+        var results = new AirtightnessResultStore(_store.GetRecordsDirectory(edited));
+        _store.SaveConfiguration(edited);
+        Configuration = edited;
+        _results = results;
+        Refresh(results.LoadAll());
+        AddLog($"本地保存路径已更新：测试记录 {RecordsDirectory}；日志 {LogDirectory}。", "信息");
         RaiseAllPropertiesChanged();
     }
 
@@ -161,7 +248,7 @@ public sealed class AirtightnessViewModel : ViewModelBase
         edited.Motion = ConfigurationStore.Clone(motion);
         _store.SaveConfiguration(edited);
         Configuration = edited;
-        AddLog($"双通道动作设置已保存：{motion.PortName} / {motion.BaudRate} / 站号 {motion.StationAddress}；CH1=Y{motion.Channel1Output}，CH2=Y{motion.Channel2Output}；输出控制{(motion.Enabled ? "已允许" : "未启用")}。", "信息");
+        AddLog($"双通道下位机设置已保存：{motion.PortName} / {motion.BaudRate} / 站号 {motion.StationAddress}；启动=X{motion.StartInput}，CH1=Y{motion.Channel1Output}，CH2=Y{motion.Channel2Output}，结果后保持 {motion.OutputReleaseDelaySeconds:0.###} 秒；输出控制{(motion.Enabled ? "已允许" : "未启用")}；手动跳过继电器{(motion.SkipRelayControlForManualTest ? "已启用" : "未启用")}。", "信息");
         RaiseAllPropertiesChanged();
     }
 
@@ -190,6 +277,8 @@ public sealed class AirtightnessViewModel : ViewModelBase
             _scannerConnection = scanner;
             ScannerState = "已连接";
             AddLog($"扫码枪已连接：{Configuration.Scanner.ConnectionType}。", "信息");
+            if (IsAutomaticScanMode)
+                await BeginAutomaticScanAsync();
         }
         catch
         {
@@ -200,68 +289,56 @@ public sealed class AirtightnessViewModel : ViewModelBase
         finally { RaiseAllPropertiesChanged(); }
     }
 
-    /// <summary>
-    /// 主界面“开始测试”的扫码阶段。自动模式依次触发 CH1、CH2；此方法不下发气密测试命令。
-    /// </summary>
-    public async Task StartScanAsync()
+    /// <summary>自动扫码模式在扫码枪连接后即开始依次接收 CH1、CH2；不向气密仪下发启动命令。</summary>
+    private async Task BeginAutomaticScanAsync()
     {
         if (IsSimulating) throw new InvalidOperationException("模拟测试正在进行，请先停止模拟测试。");
-
-        if (IsNoScanMode)
-        {
-            _scanStartRequested = true;
-            SimulationSummary = "当前为不扫码模式，正在请求开启双通道 I/O 输出。";
-            AddLog("开始测试：当前为不扫码模式，跳过扫码枪并请求开启双通道 I/O 输出。", "提示");
-            RaiseAllPropertiesChanged();
-            await OpenMotionAsync("不扫码模式");
-            return;
-        }
-
-        if (IsManualScanMode)
-        {
-            _automaticScanRunning = false;
-            _scanStartRequested = true;
-            if (IsBarcodePairReady)
-            {
-                SimulationSummary = "CH1、CH2 条码均已存在，正在按条码条件请求开启双通道 I/O 输出。";
-                AddLog("开始测试：手动扫码模式检测到 CH1、CH2 条码已齐全，请求开启双通道 I/O 输出。", "提示");
-                if (Configuration.Motion.Enabled && Configuration.Motion.AutoOpenAfterBarcode)
-                    await OpenMotionAsync("手动扫码条码齐全");
-                else
-                    AddLog("条码已齐全，但未启用“条码齐全后自动开启动作输出”，未发送 I/O 开启命令。", "提示");
-            }
-            else
-            {
-                SimulationSummary = "请扫描或输入 CH1、CH2 条码；两码齐全后将请求开启双通道 I/O 输出。";
-                AddLog("开始测试：手动扫码模式，等待 CH1、CH2 条码。", "提示");
-            }
-            RaiseAllPropertiesChanged();
-            return;
-        }
-
         if (!IsScannerConnected || _scannerConnection is null)
             throw new InvalidOperationException("自动扫码前请先在“设备连接”中连接扫码枪。");
 
         ClearBarcodes();
-        _scanStartRequested = true;
         _automaticScanRunning = true;
         StartScannerWait();
         SimulationSummary = "已开始自动扫码，正在等待 CH1 条码。";
-        AddLog("开始测试：已触发自动扫码，等待 CH1 条码。", "提示");
+        AddLog("自动扫码模式已就绪，正在等待 CH1 条码。", "提示");
         RaiseAllPropertiesChanged();
         await TriggerScannerAsync(1);
     }
 
     public async Task ToggleInstrumentConnectionAsync()
     {
-        if (IsInstrumentConnected)
+        if (_isInstrumentRecovering)
+            throw new InvalidOperationException("气密仪正在停止或恢复连接，请稍候再操作。");
+
+        // Do not use IsInstrumentConnected here. A cancelled read deliberately closes the port
+        // before its monitoring task has finished; the client instance still owns that lifecycle.
+        if (_instrumentClient is not null)
         {
-            await _instrumentClient!.DisconnectAsync();
-            await _instrumentClient.DisposeAsync();
-            _instrumentClient = null;
-            InstrumentState = "未连接";
-            AddLog("气密仪已断开。");
-            RaiseAllPropertiesChanged();
+            _isDisconnectingInstrument = true;
+            try
+            {
+                _continuousInstrumentMonitoringEnabled = false;
+                _instrumentTestCancellation?.Cancel();
+                _instrumentClient.AbortPendingExchange();
+                var monitoringTask = _instrumentTestTask;
+                if (monitoringTask is not null) await monitoringTask;
+
+                var existingInstrument = _instrumentClient;
+                _instrumentClient = null;
+                if (existingInstrument is not null)
+                {
+                    await existingInstrument.DisconnectAsync();
+                    await existingInstrument.DisposeAsync();
+                }
+                InstrumentState = "未连接";
+                SimulationSummary = "气密仪已断开。";
+                AddLog("气密仪已断开。", "信息");
+            }
+            finally
+            {
+                _isDisconnectingInstrument = false;
+                RaiseAllPropertiesChanged();
+            }
             return;
         }
 
@@ -274,6 +351,11 @@ public sealed class AirtightnessViewModel : ViewModelBase
             _instrumentClient = instrument;
             InstrumentState = "已连接";
             AddLog($"气密仪已连接：{Configuration.Instrument.PortName} / {Configuration.Instrument.BaudRate} / 站号 {Configuration.Instrument.StationAddress}。", "信息");
+            if (IsNoScanMode)
+            {
+                SimulationSummary = "气密仪已连接。请先完成气密配置；准备开始时点击“准备等待面板 Start”。";
+                AddLog("气密仪已连接：当前为不扫码模式，未自动开始等待；请在完成配置后手动准备等待。", "提示");
+            }
         }
         catch
         {
@@ -282,16 +364,17 @@ public sealed class AirtightnessViewModel : ViewModelBase
         }
         finally { RaiseAllPropertiesChanged(); }
     }
-
     public async Task ToggleMotionConnectionAsync()
     {
-        if (IsMotionConnected)
+        if (IsInstrumentTesting)
+            throw new InvalidOperationException("本轮测试或动作模块恢复期间不能手动断开下位机。");
+        if (_motionClient is not null)
         {
             await _motionClient!.DisconnectAsync();
             await _motionClient.DisposeAsync();
             _motionClient = null;
             MotionState = "未连接";
-            AddLog("双通道动作控制模块已断开。");
+            AddLog("双通道下位机已断开。");
             RaiseAllPropertiesChanged();
             return;
         }
@@ -299,10 +382,10 @@ public sealed class AirtightnessViewModel : ViewModelBase
         try
         {
             await motion.ConnectAsync();
-            _ = await motion.ReadOutputAsync(Configuration.Motion.Channel1Output);
+            _ = await motion.ReadInputAsync(Configuration.Motion.StartInput);
             _motionClient = motion;
             MotionState = "已连接";
-            AddLog($"双通道动作控制模块已连接：{Configuration.Motion.PortName} / {Configuration.Motion.BaudRate} / 站号 {Configuration.Motion.StationAddress}。", "信息");
+            AddLog($"双通道下位机已连接：{Configuration.Motion.PortName} / {Configuration.Motion.BaudRate} / 站号 {Configuration.Motion.StationAddress}。", "信息");
         }
         catch
         {
@@ -312,11 +395,70 @@ public sealed class AirtightnessViewModel : ViewModelBase
         finally { RaiseAllPropertiesChanged(); }
     }
 
+
+    /// <summary>只验证扫码枪连接可打开；测试结束后立即释放，不触发扫码也不发送任何指令。</summary>
+    public async Task TestScannerConnectionAsync()
+    {
+        if (Configuration.Scanner.ConnectionType == ConnectionType.Disabled)
+            throw new InvalidOperationException("扫码枪通讯方式当前为“禁用”，请先选择实际方式。");
+        if (IsScannerConnected)
+        {
+            AddLog("扫码枪测试连通成功：当前已连接。", "信息");
+            return;
+        }
+
+        var scanner = _deviceConnectionFactory.Create(Configuration.Scanner);
+        try
+        {
+            await scanner.OpenAsync();
+            AddLog($"扫码枪测试连通成功：{Configuration.Scanner.ConnectionType} 可正常打开。", "信息");
+        }
+        finally
+        {
+            if (scanner.IsOpen) await scanner.CloseAsync();
+            await scanner.DisposeAsync();
+        }
+    }
+
+    /// <summary>只读 CH1 当前压力寄存器，验证气密仪的串口、Modbus 站号、CRC 和浮点字序。</summary>
+    public async Task<float> TestInstrumentConnectionAsync()
+    {
+        if (_instrumentClient is not null && IsInstrumentConnected)
+        {
+            var pressure = await _instrumentClient.ReadChannelPressureAsync(1);
+            AddLog($"气密仪测试连通成功：CH1 当前压力 {pressure:0.000} kPa。", "信息");
+            return pressure;
+        }
+
+        await using var instrument = new ByzModbusRtuClient(Configuration.Instrument);
+        await instrument.ConnectAsync();
+        var currentPressure = await instrument.ReadChannelPressureAsync(1);
+        AddLog($"气密仪测试连通成功：CH1 当前压力 {currentPressure:0.000} kPa。", "信息");
+        return currentPressure;
+    }
+
+    /// <summary>只读取启动输入，不查询或写入任何 Y 输出。</summary>
+    public async Task<bool> TestMotionConnectionAsync()
+    {
+        if (_motionClient is not null && IsMotionConnected)
+        {
+            var input = await _motionClient.ReadInputAsync(Configuration.Motion.StartInput);
+            AddLog($"下位机测试连通成功：X{Configuration.Motion.StartInput}={(input ? "触发" : "未触发")}。", "信息");
+            return input;
+        }
+
+        await using var motion = new DigitalIoModbusRtuClient(Configuration.Motion);
+        await motion.ConnectAsync();
+        var startInput = await motion.ReadInputAsync(Configuration.Motion.StartInput);
+        AddLog($"下位机测试连通成功：X{Configuration.Motion.StartInput}={(startInput ? "触发" : "未触发")}。", "信息");
+        return startInput;
+    }
     public async Task SetMotionOutputAsync(int channel, bool enabled)
+
     {
         if (!CanConfigure) throw new UnauthorizedAccessException("当前账号无权控制气密动作继电器。");
-        if (!Configuration.Motion.Enabled) throw new InvalidOperationException("动作控制未启用。请先在双通道动作设置中确认接线并勾选“允许上位机控制继电器”。");
-        if (!IsMotionConnected || _motionClient is null) throw new InvalidOperationException("动作控制模块未连接。");
+        if (!Configuration.Motion.Enabled) throw new InvalidOperationException("下位机控制未启用。请先在下位机设置中确认接线并勾选“允许上位机控制下位机继电器”。");
+        if (!IsMotionConnected || _motionClient is null) throw new InvalidOperationException("下位机未连接。");
         var output = channel == 1 ? Configuration.Motion.Channel1Output : channel == 2 ? Configuration.Motion.Channel2Output
             : throw new ArgumentOutOfRangeException(nameof(channel));
         await _motionClient.SetOutputAsync(output, enabled);
@@ -344,9 +486,9 @@ public sealed class AirtightnessViewModel : ViewModelBase
         AddLog($"双通道条码已就绪：CH1 {Channel1Barcode}，CH2 {Channel2Barcode}。", "信息");
         CancelScannerWait();
         _automaticScanRunning = false;
-        SimulationSummary = "双通道条码已就绪；正在按测试流程开启 I/O 并启动 BYD 双通道气密仪。";
+        SimulationSummary = "双通道条码已就绪；正在按测试流程开启 I/O 并等待仪器面板 Start。";
         _ = StopScannerAsync();
-        if (_scanStartRequested && Configuration.Motion.Enabled && Configuration.Motion.AutoOpenAfterBarcode && !_motionTriggeredForBarcodePair)
+        if (!_motionTriggeredForBarcodePair)
         {
             _motionTriggeredForBarcodePair = true;
             _ = OpenMotionAfterBarcodeAsync();
@@ -376,88 +518,304 @@ public sealed class AirtightnessViewModel : ViewModelBase
 
     private async Task OpenMotionAsync(string source)
     {
-        if (!Configuration.Motion.Enabled)
-            throw new InvalidOperationException("动作控制未启用。请先在“双通道动作设置”中勾选“允许上位机控制继电器”。");
-        if (!IsMotionConnected || _motionClient is null)
-            throw new InvalidOperationException("I/O 动作控制模块未连接，未发送开启输出命令。");
-        if (!IsInstrumentConnected || _instrumentClient is null)
-            throw new InvalidOperationException("气密仪未连接，未发送 I/O 开启或气密测试启动指令。");
+        if (ShouldSkipRelayControlForManualTest())
+        {
+            if (!IsInstrumentConnected || _instrumentClient is null)
+                throw new InvalidOperationException("气密仪未连接，无法等待仪器面板 Start 并采集测试数据。");
 
-        await _motionClient.SetOutputAsync(Configuration.Motion.Channel1Output, true);
-        await _motionClient.SetOutputAsync(Configuration.Motion.Channel2Output, true);
+            AddLog($"{source}：手动测试已跳过 CH1/CH2 I/O 继电器控制，等待操作员按下气密仪面板 Start。", "提示");
+            await ArmManualInstrumentTestAsync();
+            return;
+        }
+
+        if (!IsInstrumentConnected || _instrumentClient is null)
+            throw new InvalidOperationException("气密仪未连接，无法等待仪器面板 Start 并采集测试数据。");
+
+        if (!Configuration.Motion.Enabled || !IsMotionConnected || _motionClient is null)
+        {
+            var reason = !Configuration.Motion.Enabled ? "未启用下位机输出控制" : "下位机未连接";
+            AddLog($"{source}：{reason}，不发送继电器命令，直接等待操作员按下气密仪面板 Start。", "提示");
+            await ArmManualInstrumentTestAsync();
+            return;
+        }
+
+        await ArmMotionInputTestAsync(source);
+    }
+
+    private bool ShouldSkipRelayControlForManualTest() =>
+        Configuration.Motion.SkipRelayControlForManualTest && !IsAutomaticScanMode;
+
+    private Task ArmMotionInputTestAsync(string source)
+    {
+        if (_instrumentClient is null || !IsInstrumentConnected) throw new InvalidOperationException("气密仪未连接。");
+        if (_motionClient is null || !IsMotionConnected) throw new InvalidOperationException("下位机未连接。");
+        if (IsInstrumentTesting) throw new InvalidOperationException("双通道气密测试正在进行。");
+
+        var recipe = ConfigurationStore.Clone(Configuration);
+        var cancellation = new CancellationTokenSource();
+        _instrumentTestCancellation = cancellation;
+        IsInstrumentTesting = true;
+        PressureSamples.Clear();
+        Channel1State = Channel2State = $"等待 X{recipe.Motion.StartInput} 触发";
+        SimulationSummary = $"{source}：已就绪，等待 下位机 X{recipe.Motion.StartInput} 从未触发变为触发；收到后闭合 Y{recipe.Motion.Channel1Output}、Y{recipe.Motion.Channel2Output} 并开始本次测试。";
+        AddLog($"{source}：等待 X{recipe.Motion.StartInput} 上升沿；收到信号后将闭合 Y{recipe.Motion.Channel1Output}、Y{recipe.Motion.Channel2Output} 并开始本次测试。", "提示");
+        RaiseAllPropertiesChanged();
+        _instrumentTestTask = WaitForMotionInputStartAsync(_instrumentClient, _motionClient, recipe, Guid.NewGuid(), cancellation);
+        return Task.CompletedTask;
+    }
+
+    private async Task WaitForMotionInputStartAsync(ByzModbusRtuClient instrument, DigitalIoModbusRtuClient motion,
+        AirtightnessConfiguration recipe, Guid cycleId, CancellationTokenSource cancellation)
+    {
+        var monitoringStarted = false;
         try
         {
-            AddLog($"{source}：已开启 CH1/Y{Configuration.Motion.Channel1Output} 与 CH2/Y{Configuration.Motion.Channel2Output} 动作输出。", "信息");
-            await StartInstrumentTestAsync();
-            _scanStartRequested = false;
+            var (previous, _) = await ExecuteMotionWithRecoveryAsync(motion,
+                () => motion.ReadInputAsync(recipe.Motion.StartInput, cancellation.Token),
+                $"读取 X{recipe.Motion.StartInput}", cancellation.Token);
+            if (previous) AddLog($"X{recipe.Motion.StartInput} 当前已触发；为防止上一轮残留信号重复启动，将等待其先复位后再触发。", "提示");
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            while (timer.Elapsed.TotalSeconds < recipe.ManualStartWaitTimeoutSeconds)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                var (current, recovered) = await ExecuteMotionWithRecoveryAsync(motion,
+                    () => motion.ReadInputAsync(recipe.Motion.StartInput, cancellation.Token),
+                    $"读取 X{recipe.Motion.StartInput}", cancellation.Token);
+                if (recovered)
+                {
+                    // An edge that occurred while COM4 was unavailable cannot be verified.
+                    previous = current;
+                    if (current)
+                        AddLog($"{recipe.Motion.PortName} 恢复时 X{recipe.Motion.StartInput} 已触发；等待其先复位，再接收新的上升沿。", "提示");
+                    else
+                        AddLog($"{recipe.Motion.PortName} 已恢复，X{recipe.Motion.StartInput} 未触发，继续等待新的上升沿。", "信息");
+                }
+                if (timer.Elapsed.TotalSeconds >= recipe.ManualStartWaitTimeoutSeconds) break;
+                if (!previous && current)
+                {
+                    await ExecuteMotionWithRecoveryAsync(motion,
+                        async () => { await motion.SetOutputAsync(recipe.Motion.Channel1Output, true, cancellation.Token); return true; },
+                        $"开启 Y{recipe.Motion.Channel1Output}", cancellation.Token);
+                    await ExecuteMotionWithRecoveryAsync(motion,
+                        async () => { await motion.SetOutputAsync(recipe.Motion.Channel2Output, true, cancellation.Token); return true; },
+                        $"开启 Y{recipe.Motion.Channel2Output}", cancellation.Token);
+                    monitoringStarted = true;
+                    AddLog($"X{recipe.Motion.StartInput} 已触发：已闭合 Y{recipe.Motion.Channel1Output}、Y{recipe.Motion.Channel2Output}，开始本次双通道测试。", "信息");
+                    await MonitorInstrumentTestAsync(instrument, recipe, DateTimeOffset.Now, cycleId, cancellation);
+                    return;
+                }
+
+                previous = current;
+                var seconds = timer.Elapsed.TotalSeconds;
+                Channel1State = Channel2State = $"等待 X{recipe.Motion.StartInput} 触发";
+                SimulationSummary = $"下位机已就绪，等待 X{recipe.Motion.StartInput} 触发（{seconds:0} / {recipe.ManualStartWaitTimeoutSeconds} 秒）。";
+                RaiseAllPropertiesChanged();
+                await Task.Delay(200, cancellation.Token);
+            }
+
+            Channel1State = Channel2State = "等待启动超时";
+            SimulationSummary = $"未收到 X{recipe.Motion.StartInput} 启动信号，未保存测试记录和统计。";
+            AddLog($"等待 X{recipe.Motion.StartInput} 启动信号超时（{recipe.ManualStartWaitTimeoutSeconds} 秒），未保存测试记录和统计。", "提示");
         }
-        catch
+        catch (OperationCanceledException)
         {
-            await CloseMotionOutputsAsync();
-            throw;
+            Channel1State = Channel2State = "已停止";
+            SimulationSummary = "等待 I/O 启动信号已取消，未保存测试记录和统计。";
+            AddLog("等待 I/O 启动信号已取消。", "提示");
+        }
+        catch (Exception exception)
+        {
+            if (cancellation.IsCancellationRequested) return;
+            Channel1State = Channel2State = "通讯异常";
+            SimulationSummary = "等待 I/O 启动信号时通讯异常，未保存测试记录和统计。";
+            SetDiagnosticError(exception.Message);
+            AddLog($"等待 X{recipe.Motion.StartInput} 启动信号时通讯异常：{exception.Message}", "错误");
+        }
+        finally
+        {
+            if (!monitoringStarted)
+            {
+                await CloseMotionOutputsAsync();
+                FinishInstrumentTest(cancellation, resumeNoScanStandby: true);
+            }
         }
     }
 
-    private async Task StartInstrumentTestAsync()
+    private async Task<(T Value, bool Recovered)> ExecuteMotionWithRecoveryAsync<T>(
+        DigitalIoModbusRtuClient motion, Func<Task<T>> command, string description, CancellationToken cancellationToken = default)
+    {
+        Exception? lastFailure = null;
+        for (var attempt = 1; attempt <= MotionCommandMaxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (attempt > 1) await motion.ReconnectAsync(cancellationToken);
+                var value = await command();
+                if (attempt > 1)
+                {
+                    MotionState = "已连接";
+                    AddLog($"动作模块重连成功：{description} 第 {attempt}/{MotionCommandMaxAttempts} 次发送收到匹配且 CRC 正确的回复。", "信息");
+                    RaiseAllPropertiesChanged();
+                }
+                return (value, attempt > 1);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                lastFailure = exception;
+                MotionState = attempt < MotionCommandMaxAttempts ? "等待重连" : "通讯异常";
+                if (IsInstrumentTesting)
+                    SimulationSummary = attempt < MotionCommandMaxAttempts
+                        ? $"动作模块通讯异常，等待 {Configuration.Motion.PortName} 重连并重发 {description}（最多 {MotionCommandMaxAttempts} 次）。"
+                        : $"动作模块 {description} 连续 {MotionCommandMaxAttempts} 次未确认，本轮测试已停止。";
+                AddLog($"动作模块 {description} 第 {attempt}/{MotionCommandMaxAttempts} 次未确认：{exception.Message}",
+                    attempt < MotionCommandMaxAttempts ? "提示" : "错误");
+                RaiseAllPropertiesChanged();
+            }
+        }
+        throw new InvalidDataException($"动作模块 {description} 最多 {MotionCommandMaxAttempts} 次发送仍未收到匹配回复。", lastFailure);
+    }
+
+    private async Task EnterNoScanStandbyAsync()
+    {
+        if (!IsNoScanMode || IsSimulating || IsInstrumentTesting) return;
+        try
+        {
+            SimulationSummary = Configuration.Motion.Enabled && IsMotionConnected
+                ? $"不扫码模式已就绪，持续等待 X{Configuration.Motion.StartInput} 启动信号。"
+                : "不扫码模式已就绪，持续等待操作员在气密仪面板按 Start。";
+            RaiseAllPropertiesChanged();
+            await OpenMotionAsync("不扫码模式自动待机");
+        }
+        catch (Exception exception)
+        {
+            SimulationSummary = "不扫码模式待机失败，请检查气密仪连接。";
+            AddLog($"不扫码模式自动待机失败：{exception.Message}", "错误");
+            RaiseAllPropertiesChanged();
+        }
+    }
+
+    private Task ArmManualInstrumentTestAsync()
     {
         if (_instrumentClient is null || !IsInstrumentConnected) throw new InvalidOperationException("气密仪未连接。");
         if (IsInstrumentTesting) throw new InvalidOperationException("双通道气密测试正在进行。");
 
+        var instrument = _instrumentClient;
+        _manualStopRequested = false;
         var recipe = ConfigurationStore.Clone(Configuration);
-        var started = DateTimeOffset.Now;
         var cycleId = Guid.NewGuid();
         var cancellation = new CancellationTokenSource();
         _instrumentTestCancellation = cancellation;
         IsInstrumentTesting = true;
         PressureSamples.Clear();
-        Channel1State = Channel2State = "启动中";
-        SimulationSummary = "已发送双通道气密仪启动指令，正在采集实时压力。";
+        Channel1State = Channel2State = "等待面板 Start";
+        SimulationSummary = $"上位机已就绪，请在气密仪面板按 Start（最长等待 {recipe.ManualStartWaitTimeoutSeconds} 秒）。";
+        AddLog($"上位机已就绪，未向气密仪发送启动指令；请在仪器面板按 Start。检测到任一通道实时压力变化后将自动采集双通道波形。", "提示");
         RaiseAllPropertiesChanged();
+        _instrumentTestTask = WaitForManualInstrumentStartAsync(instrument, recipe, cycleId, cancellation);
+        return Task.CompletedTask;
+    }
+
+    private async Task WaitForManualInstrumentStartAsync(ByzModbusRtuClient instrument, AirtightnessConfiguration recipe, Guid cycleId, CancellationTokenSource cancellation)
+    {
+        var monitoringStarted = false;
+        float? idlePressure1 = null;
+        float? idlePressure2 = null;
         try
         {
-            await _instrumentClient.StartChannelAsync(1, cancellation.Token);
-            await _instrumentClient.StartChannelAsync(2, cancellation.Token);
-            AddLog("已按 BYD 双通道协议发送 CH1、CH2 启动线圈指令。", "信息");
-            _ = MonitorInstrumentTestAsync(recipe, started, cycleId, cancellation);
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            while (timer.Elapsed.TotalSeconds < recipe.ManualStartWaitTimeoutSeconds)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                var pressure1 = await instrument.ReadChannelPressureAsync(1, cancellation.Token);
+                var pressure2 = await instrument.ReadChannelPressureAsync(2, cancellation.Token);
+                UpdatePressureDiagnostics(pressure1, pressure2, "等待压力变化");
+                idlePressure1 ??= pressure1;
+                idlePressure2 ??= pressure2;
+                var pressureChanged = Math.Abs(pressure1 - idlePressure1.Value) >= 0.5f || Math.Abs(pressure2 - idlePressure2.Value) >= 0.5f;
+                if (pressureChanged)
+                {
+                    monitoringStarted = true;
+                    AddLog($"已检测到实时压力变化：CH1 {pressure1:0.000} kPa；CH2 {pressure2:0.000} kPa。开始采集实时波形。", "信息");
+                    await MonitorInstrumentTestAsync(instrument, recipe, DateTimeOffset.Now, cycleId, cancellation);
+                    return;
+                }
+
+                var seconds = timer.Elapsed.TotalSeconds;
+                Channel1State = Channel2State = "等待面板 Start";
+                SimulationSummary = $"条码/I-O 已就绪，请在气密仪面板按 Start（{seconds:0} / {recipe.ManualStartWaitTimeoutSeconds} 秒）。";
+                RaiseAllPropertiesChanged();
+                await Task.Delay(250, cancellation.Token);
+            }
+
+            Channel1State = Channel2State = "等待启动超时";
+            SimulationSummary = "未检测到仪器面板 Start，未保存测试记录和统计。";
+            AddLog($"等待仪器面板 Start 超时（{recipe.ManualStartWaitTimeoutSeconds} 秒），未保存测试记录和统计。", "提示");
         }
-        catch
+        catch (OperationCanceledException)
         {
-            IsInstrumentTesting = false;
-            _instrumentTestCancellation = null;
-            cancellation.Dispose();
-            RaiseAllPropertiesChanged();
-            throw;
+            Channel1State = Channel2State = "已停止";
+            SimulationSummary = "等待仪器面板 Start 已取消，未保存测试记录和统计。";
+            AddLog("等待仪器面板 Start 已取消。", "提示");
+        }
+        catch (Exception exception)
+        {
+            if (cancellation.IsCancellationRequested)
+            {
+                Channel1State = Channel2State = "已停止";
+                SimulationSummary = "等待仪器面板 Start 已取消，未保存测试记录和统计。";
+                AddLog("等待仪器面板 Start 已取消。", "提示");
+                return;
+            }
+            Channel1State = Channel2State = "通讯异常";
+            SimulationSummary = "等待仪器面板 Start 时通讯异常，未保存测试记录和统计。";
+            SetDiagnosticError(exception.Message);
+            AddLog($"等待仪器面板 Start 时通讯异常：{exception.Message}", "错误");
+        }
+        finally
+        {
+            if (!monitoringStarted)
+            {
+                await CloseMotionOutputsAsync();
+                IsInstrumentTesting = false;
+                FinishInstrumentTest(cancellation, resumeNoScanStandby: true);
+            }
         }
     }
 
-    private async Task MonitorInstrumentTestAsync(AirtightnessConfiguration recipe, DateTimeOffset started, Guid cycleId, CancellationTokenSource cancellation)
+    private async Task MonitorInstrumentTestAsync(ByzModbusRtuClient instrument, AirtightnessConfiguration recipe, DateTimeOffset started, Guid cycleId, CancellationTokenSource cancellation)
     {
+        var completed = false;
         try
         {
             var timer = System.Diagnostics.Stopwatch.StartNew();
             var duration = (double)(recipe.FillSeconds + recipe.BalanceSeconds + recipe.TestSeconds + recipe.ExhaustSeconds);
             var deadline = duration + 5d;
+            AddLog($"实时波形只读取已验证的压力地址；将在工艺时间 {duration:0.0} 秒加 5 秒安全余量后读取最终结果。", "提示");
+
             while (timer.Elapsed.TotalSeconds < deadline)
             {
                 cancellation.Token.ThrowIfCancellationRequested();
-                var ch1 = await _instrumentClient!.ReadChannelMeasurementAsync(1, cancellation.Token);
-                var ch2 = await _instrumentClient.ReadChannelMeasurementAsync(2, cancellation.Token);
+                var pressure1 = await instrument.ReadChannelPressureAsync(1, cancellation.Token);
+                var pressure2 = await instrument.ReadChannelPressureAsync(2, cancellation.Token);
+                UpdatePressureDiagnostics(pressure1, pressure2, "实时采集");
                 var seconds = timer.Elapsed.TotalSeconds;
-                PressureSamples.Add(new PressureSample(seconds, ch1.PressureKpa, ch2.PressureKpa, ch1.LeakPa, ch2.LeakPa, StageFor(recipe, seconds)));
-                Pressure1Text = ch1.PressureKpa.ToString("0.000");
-                Pressure2Text = ch2.PressureKpa.ToString("0.000");
-                Leak1Text = ch1.LeakPa.ToString("0.00");
-                Leak2Text = ch2.LeakPa.ToString("0.00");
-                Channel1State = $"{StageFor(recipe, seconds)} · 结果码 {ch1.ResultCode}";
-                Channel2State = $"{StageFor(recipe, seconds)} · 结果码 {ch2.ResultCode}";
+                PressureSamples.Add(new PressureSample(seconds, pressure1, pressure2, 0, 0, StageFor(recipe, seconds)));
+                Pressure1Text = pressure1.ToString("0.000");
+                Pressure2Text = pressure2.ToString("0.000");
+                Leak1Text = Leak2Text = "待最终结果";
+                Channel1State = $"{StageFor(recipe, seconds)} · 压力采集";
+                Channel2State = $"{StageFor(recipe, seconds)} · 压力采集";
                 SimulationSummary = $"双通道实测 · {StageFor(recipe, seconds)} · {seconds:0.0} / {duration:0.0} s";
                 RaiseAllPropertiesChanged();
+
                 await Task.Delay(250, cancellation.Token);
             }
 
-            var final1 = await _instrumentClient!.ReadChannelFinalMeasurementAsync(1, cancellation.Token);
-            var final2 = await _instrumentClient.ReadChannelFinalMeasurementAsync(2, cancellation.Token);
+            var final1 = await instrument.ReadChannelFinalMeasurementAsync(1, cancellation.Token);
+            var final2 = await instrument.ReadChannelFinalMeasurementAsync(2, cancellation.Token);
             CompleteInstrumentCycle(recipe, started, cycleId, final1, final2);
+            completed = true;
         }
         catch (OperationCanceledException)
         {
@@ -467,53 +825,204 @@ public sealed class AirtightnessViewModel : ViewModelBase
         }
         catch (Exception exception)
         {
+            if (cancellation.IsCancellationRequested)
+            {
+                Channel1State = Channel2State = "已停止";
+                SimulationSummary = "双通道实测已停止，未保存记录和统计。";
+                AddLog("双通道气密实测已停止。", "提示");
+                return;
+            }
             Channel1State = Channel2State = "通讯异常";
             SimulationSummary = "双通道实测通讯异常，未保存记录和统计。";
+            SetDiagnosticError(exception.Message);
             AddLog($"双通道气密实测异常：{exception.Message}", "错误");
         }
         finally
         {
-            await CloseMotionOutputsAsync();
-            IsInstrumentTesting = false;
-            _instrumentTestCancellation?.Dispose();
-            _instrumentTestCancellation = null;
+            if (completed) await CloseMotionOutputsAfterDelayAsync(recipe.Motion.OutputReleaseDelaySeconds);
+            else await CloseMotionOutputsAsync();
+            FinishInstrumentTest(cancellation, resumeNoScanStandby: completed);
+        }
+    }
+
+    /// <summary>不扫码模式的显式待机入口；不会向气密仪发送启动指令。</summary>
+    public async Task PrepareInstrumentTestAsync()
+    {
+        if (!IsNoScanMode) throw new InvalidOperationException("当前扫码模式需在双通道条码齐全后自动准备测试。");
+        if (!IsInstrumentConnected || _instrumentClient is null) throw new InvalidOperationException("请先连接气密仪。");
+        _continuousInstrumentMonitoringEnabled = true;
+        AddLog("已启用持续待机：每轮测试完成后将自动等待下一次仪器面板 Start，直到操作员点击停止。", "信息");
+        RaiseAllPropertiesChanged();
+        await EnterNoScanStandbyAsync();
+    }
+
+    public async Task StopInstrumentTestAsync()
+    {
+        if (!IsInstrumentTesting && !_continuousInstrumentMonitoringEnabled) return;
+        _continuousInstrumentMonitoringEnabled = false;
+        if (!IsInstrumentTesting)
+        {
+            SimulationSummary = "已停止持续等待；气密仪保持连接。";
+            AddLog("操作员已停止持续等待；气密仪保持连接。", "提示");
+            RaiseAllPropertiesChanged();
+            return;
+        }
+
+        _manualStopRequested = true;
+        AddLog("操作员请求停止等待/实测，正在取消本轮气密监控。", "提示");
+        _instrumentTestCancellation?.Cancel();
+        // SerialPort read can ignore cancellation; closing this client's port releases the pending read.
+        _instrumentClient?.AbortPendingExchange();
+        _isInstrumentRecovering = true;
+        InstrumentState = "连接中";
+        RaiseAllPropertiesChanged();
+
+        var monitoringTask = _instrumentTestTask;
+        if (monitoringTask is null) return;
+        var completed = await Task.WhenAny(monitoringTask, Task.Delay(TimeSpan.FromSeconds(5)));
+        if (completed != monitoringTask)
+        {
+            SimulationSummary = "停止请求已发送，正在等待串口读操作释放；请稍候，勿重复连接。";
+            AddLog("停止等待超过 5 秒：串口读操作尚在释放，保持停止中状态。", "提示");
+            RaiseAllPropertiesChanged();
+            return;
+        }
+        await monitoringTask;
+    }
+    private void FinishInstrumentTest(CancellationTokenSource cancellation, bool resumeNoScanStandby)
+    {
+        if (!ReferenceEquals(_instrumentTestCancellation, cancellation)) return;
+        var restoreAfterManualStop = _manualStopRequested && !_isDisconnectingInstrument && _instrumentClient is not null;
+        IsInstrumentTesting = false;
+        _instrumentTestCancellation = null;
+        _instrumentTestTask = null;
+        cancellation.Dispose();
+        var resumeContinuousStandby = resumeNoScanStandby && _continuousInstrumentMonitoringEnabled && !restoreAfterManualStop
+            && IsNoScanMode && IsInstrumentConnected;
+        _manualStopRequested = false;
+        RaiseAllPropertiesChanged();
+        if (restoreAfterManualStop) _ = RestoreInstrumentConnectionAfterStopAsync();
+        else if (resumeContinuousStandby) _ = ResumeContinuousStandbyAsync();
+    }
+
+    private async Task ResumeContinuousStandbyAsync()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (!_continuousInstrumentMonitoringEnabled || IsInstrumentTesting || !IsNoScanMode || !IsInstrumentConnected) return;
+        AddLog("本轮气密测试结束，继续等待下一次仪器面板 Start。", "信息");
+        await EnterNoScanStandbyAsync();
+    }
+
+    private async Task RestoreInstrumentConnectionAfterStopAsync()
+    {
+        if (_instrumentClient is null || _isDisconnectingInstrument) return;
+        try
+        {
+            await _instrumentClient.ReconnectAsync();
+            InstrumentState = "已连接";
+            SimulationSummary = "等待/测试已停止，气密仪已恢复连接；现在可修改并同步气密配置。";
+            AddLog("气密仪已恢复连接；现在可修改并同步气密配置。", "信息");
+        }
+        catch (Exception exception)
+        {
+            var failedInstrument = _instrumentClient;
+            _instrumentClient = null;
+            if (failedInstrument is not null) await failedInstrument.DisposeAsync();
+            InstrumentState = "未连接";
+            SimulationSummary = "停止后气密仪重连失败，请检查串口后重新连接。";
+            AddLog($"停止后气密仪重连失败：{exception.Message}", "错误");
+        }
+        finally
+        {
+            _isInstrumentRecovering = false;
             RaiseAllPropertiesChanged();
         }
+    }
+
+    private void UpdateDiagnostics(ByzChannelStageStatus? status1, ByzChannelStageStatus? status2,
+        ByzChannelMeasurement channel1, ByzChannelMeasurement channel2)
+    {
+        DiagnosticChannel1 = $"阶段 6021–6025：{status1?.Description ?? "未读取"}；气压@30：{channel1.PressureKpa:0.000} kPa；压降@350：{channel1.LeakPa:0.00} Pa；结果码@11：{channel1.ResultCode}";
+        DiagnosticChannel2 = $"阶段 6051–6055：{status2?.Description ?? "未读取"}；气压@30：{channel2.PressureKpa:0.000} kPa；压降@350：{channel2.LeakPa:0.00} Pa；结果码@11：{channel2.ResultCode}";
+        DiagnosticUpdatedText = $"最后刷新：{DateTime.Now:HH:mm:ss.fff}";
+        DiagnosticErrorText = "无";
+    }
+
+    private void UpdatePressureDiagnostics(float pressure1, float pressure2, string state)
+    {
+        DiagnosticChannel1 = $"启动判定：仅压力变化；状态：{state}；气压@30：{pressure1:0.000} kPa；压降/结果码：待最终结果读取";
+        DiagnosticChannel2 = $"启动判定：仅压力变化；状态：{state}；气压@1030：{pressure2:0.000} kPa；压降/结果码：待最终结果读取";
+        DiagnosticUpdatedText = $"最后刷新：{DateTime.Now:HH:mm:ss.fff}";
+        DiagnosticErrorText = "无";
+        if ((DateTime.UtcNow - _lastDiagnosticLogAt).TotalSeconds >= 1)
+        {
+            _lastDiagnosticLogAt = DateTime.UtcNow;
+            AddLog($"实时通讯诊断：{state}；CH1 压力@30={pressure1:0.000} kPa；CH2 压力@1030={pressure2:0.000} kPa。", "诊断");
+        }
+    }
+
+    private void SetDiagnosticError(string message)
+    {
+        DiagnosticErrorText = message;
+        DiagnosticUpdatedText = $"读取失败：{DateTime.Now:HH:mm:ss.fff}";
     }
 
     private void CompleteInstrumentCycle(AirtightnessConfiguration recipe, DateTimeOffset started, Guid cycleId,
         ByzChannelMeasurement final1, ByzChannelMeasurement final2)
     {
-        // The protocol exposes a numeric result code but does not define PASS/FAIL coding. Keep it in the log;
-        // production acceptance is calculated from the configured pressure and leakage limits.
-        var result1 = new AirtightnessChannelResult(1, (decimal)final1.PressureKpa, (decimal)final1.LeakPa, true);
-        var result2 = new AirtightnessChannelResult(2, (decimal)final2.PressureKpa, (decimal)final2.LeakPa, true);
-        _results.Record(cycleId, started, Session.UserName, recipe, result1);
-        _results.Record(cycleId, started, Session.UserName, recipe, result2);
-        var pass1 = final1.PressureKpa >= (float)recipe.MinimumPressureKpa && final1.PressureKpa <= (float)recipe.MaximumPressureKpa && final1.LeakPa <= (float)recipe.MaximumLeakPa;
-        var pass2 = final2.PressureKpa >= (float)recipe.MinimumPressureKpa && final2.PressureKpa <= (float)recipe.MaximumPressureKpa && final2.LeakPa <= (float)recipe.MaximumLeakPa;
+        // Confirmed by vendor: result code 0=PASS, 1=FAIL. Device result is the production decision.
+        var pass1 = final1.ResultCode == 0;
+        var pass2 = final2.ResultCode == 0;
+        var result1 = new AirtightnessChannelResult(1, (decimal)final1.PressureKpa, (decimal)final1.LeakPa, pass1, final1.ResultCode);
+        var result2 = new AirtightnessChannelResult(2, (decimal)final2.PressureKpa, (decimal)final2.LeakPa, pass2, final2.ResultCode);
+        _results.RecordCompletedCycle(cycleId, started, Session.UserName, recipe, Channel1Barcode, Channel2Barcode, result1, result2);
+        AddLog($"气密 CSV 已保存：{_results.GetCsvFilePath(started)}。", "信息");
         Pressure1Text = final1.PressureKpa.ToString("0.000");
         Pressure2Text = final2.PressureKpa.ToString("0.000");
         Leak1Text = final1.LeakPa.ToString("0.00");
         Leak2Text = final2.LeakPa.ToString("0.00");
+        InstrumentResult1Text = final1.ResultCode.ToString();
+        InstrumentResult2Text = final2.ResultCode.ToString();
         Channel1State = pass1 ? "PASS" : "FAIL";
         Channel2State = pass2 ? "PASS" : "FAIL";
         SimulationSummary = $"双通道实测完成 · CH1 {(pass1 ? "PASS" : "FAIL")} · CH2 {(pass2 ? "PASS" : "FAIL")}";
-        AddLog($"双通道实测完成：CH1 {(pass1 ? "PASS" : "FAIL")}（结果码 {final1.ResultCode}），CH2 {(pass2 ? "PASS" : "FAIL")}（结果码 {final2.ResultCode}）。", "信息");
+        AddLog($"双通道实测完成：CH1 {(pass1 ? "PASS" : "FAIL")}（仪器结果码 {final1.ResultCode}），CH2 {(pass2 ? "PASS" : "FAIL")}（仪器结果码 {final2.ResultCode}）。", "信息");
         ClearBarcodes();
+        TestCycleCompleted?.Invoke();
         Refresh();
+        if (IsAutomaticScanMode && IsScannerConnected) _ = BeginAutomaticScanAsync();
     }
 
     private async Task CloseMotionOutputsAsync()
     {
-        if (!IsMotionConnected || _motionClient is null) return;
-        try
+        var motion = _motionClient;
+        if (motion is null) return;
+        var allConfirmed = true;
+        foreach (var output in new[] { Configuration.Motion.Channel1Output, Configuration.Motion.Channel2Output })
         {
-            await _motionClient.SetOutputAsync(Configuration.Motion.Channel1Output, false);
-            await _motionClient.SetOutputAsync(Configuration.Motion.Channel2Output, false);
-            AddLog("双通道实测结束，已关闭 CH1、CH2 动作输出。", "信息");
+            try
+            {
+                await ExecuteMotionWithRecoveryAsync(motion,
+                    async () => { await motion.SetOutputAsync(output, false); return true; }, $"关闭 Y{output}");
+            }
+            catch (Exception exception)
+            {
+                allConfirmed = false;
+                AddLog($"Y{output} 关闭未确认，请现场核查该输出状态：{exception.Message}", "错误");
+            }
         }
-        catch (Exception exception) { AddLog($"关闭动作输出失败：{exception.Message}", "错误"); }
+        if (allConfirmed)
+            AddLog("双通道实测结束，已关闭 CH1、CH2 动作输出。", "信息");
+    }
+
+    private async Task CloseMotionOutputsAfterDelayAsync(decimal delaySeconds)
+    {
+        if (delaySeconds > 0)
+        {
+            AddLog($"双通道测试结果已收到，Y 输出将保持 {delaySeconds:0.###} 秒后断开。", "信息");
+            await Task.Delay(TimeSpan.FromSeconds((double)delaySeconds));
+        }
+        await CloseMotionOutputsAsync();
     }
 
     private static string StageFor(AirtightnessConfiguration recipe, double seconds)
@@ -635,17 +1144,13 @@ public sealed class AirtightnessViewModel : ViewModelBase
     {
         CancelScannerWait();
         _automaticScanRunning = false;
-        _instrumentTestCancellation?.Cancel();
-        if (_instrumentClient is not null && _instrumentClient.IsConnected)
+        _isDisconnectingInstrument = true;
+        try
         {
-            try
-            {
-                await _instrumentClient.StopChannelAsync(1);
-                await _instrumentClient.StopChannelAsync(2);
-                AddLog("工作站关闭或断开前，已向 CH1、CH2 发送气密仪停止指令。", "提示");
-            }
-            catch (Exception exception) { AddLog($"发送气密仪停止指令失败：{exception.Message}", "错误"); }
+            _instrumentTestCancellation?.Cancel();
+            if (_instrumentTestTask is not null) await _instrumentTestTask;
         }
+        finally { _isDisconnectingInstrument = false; }
         await CloseMotionOutputsAsync();
         if (_scannerConnection is not null)
         {
@@ -714,6 +1219,7 @@ public sealed class AirtightnessViewModel : ViewModelBase
             while (SimulationHistory.Count > 100) SimulationHistory.RemoveAt(SimulationHistory.Count - 1);
             AddLog($"[模拟] {result}；CH1 {last.Leak1:0.00} Pa，CH2 {last.Leak2:0.00} Pa。");
             ClearBarcodes();
+            TestCycleCompleted?.Invoke();
             AddLog("测试完成，已清除 CH1、CH2 条码，等待 CH1 下一次扫码。", "信息");
         }
         catch (OperationCanceledException)
@@ -737,9 +1243,12 @@ public sealed class AirtightnessViewModel : ViewModelBase
 
     private void Refresh(IReadOnlyList<AirtightnessCycle> records)
     {
-        Statistics = AirtightnessStatistics.Calculate(records, Configuration.CountingMode);
+        var currentRecords = Configuration.StatisticsStartAt is { } start
+            ? records.Where(record => record.StartedAt >= start).ToList()
+            : records;
+        Statistics = AirtightnessStatistics.Calculate(currentRecords, Configuration.CountingMode);
         History.Clear();
-        foreach (var cycle in records.Where(r => r.Recipe.CountingMode == Configuration.CountingMode).Take(100))
+        foreach (var cycle in currentRecords.Where(r => r.Recipe.CountingMode == Configuration.CountingMode).Take(100))
         {
             var ch1 = cycle.Channels.SingleOrDefault(c => c.Channel == 1);
             var ch2 = cycle.Channels.SingleOrDefault(c => c.Channel == 2);

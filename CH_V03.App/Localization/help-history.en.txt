@@ -1,0 +1,143 @@
+CH_V02.87: The huaqin account now remembers its first successful login on this computer, so switching back does not require credentials. Switching from manual to automatic scanning restores serial scanner communication and reconnects.
+
+CH_V02.85: Removed the batch number from the HongXin main screen. Production flow number now controls flow startup; each new or changed number starts once.
+
+CH_V02.84: HongXin MES now uses the production flow number from the main screen consistently for startup, output and station pass.
+
+CH_V02.83: Itemnum retries pause as soon as the first Item1 header segment arrives and resume only after the complete end marker, avoiding duplicate requests during a split header.
+
+CH_V02.82: Added production flow and batch numbers on the main screen for HongXin. The flow starts only after the batch number is first entered or changed.
+
+CH_V02.81: HongXin OA ICT uploads integer 0 for the test Index field; nonnumeric equipment codes are no longer sent to that integer field. Measured values remain available to the new MES.
+
+CH_V02.80: Added CSV attachment diagnostics to MES uploads and a fallback search in the CSV output folder when an exporter does not return a file path.
+
+CH_V02.79: HongXin MES requests use hyphenated date and time fields, integer fields, and complete characteristic limits and units.
+
+CH_V02.78: HongXin plugin settings are grouped into original OA, shared MES, equipment output upload, unit station pass and category mapping.
+
+CH_V02.77: HongXin MES groups FCT/ICT items by category and writes item details as JSON to sp_require.
+
+CH_V02.76: HongXin keeps original OA upload and adds MES flow startup, equipment output upload and unit station pass, with a selectable upload mode and current CSV attachment.
+
+CH_V02.75: HongXin OA parses the outer ASMX XML response and shows the API MSG in failure alerts.
+
+CH_V02.74: HongXin OA submits x-www-form-urlencoded forms matching the field Postman request, with request data in a JSON field.
+
+CH_V02.73: HongXin OA upload failures log the request URL, JSON, HTTP status and response for field diagnosis.
+
+CH_V02.72: Renamed the HongXin OA MES plugin assembly to CH_V03.Mes.HongXin.dll.
+
+CH_V02.71: Startup creates or repairs the huaqin administrator account with the default password admin.
+
+CH_V02.70: YiDong EAP CSV exports write item upper limits in +% and lower limits in -%.
+
+CH_V02.69: Hid the consecutive duplicate test option on the Kunshan JiaLianYi basic page; the saved behavior remains active.
+
+CH_V02.68: Added part number to Kunshan JiaLianYi basic settings and passed it to MES and export. CSV names prefer part number plus date.
+
+CH_V02.67: Scanner, controller and MES state buttons on the Kunshan JiaLianYi basic page now show status without allowing changes.
+
+CH_V02.66: Added the HongXin OA MES plugin with ICT SNICTUpload and FCT FunctionalTestUpload; items upload in protocol order.
+
+CH_V02.65: Added the huaqin administrator account and automatic local login after its first successful manual login.
+
+CH_V02.64: Manual scanning automatically selects USB POS HID. A new setting allows consecutive duplicate tests; otherwise a barcode matching the previous started test is blocked.
+
+CH_V02.60: YiDong EAP vertical CSV details follow configured CompTest and FunTest numbers. OpenTest and ShortTest keep only failed point summaries.
+
+CH_V02.59: Removed apostrophes from YiDong EAP vertical CSV failed points and expanded multipoint SHORT details into rows with item names and limits.
+
+CH_V02.58: Moved Tooling back to the shared Kunshan JiaLianYi MES and export settings. Added an optional fixed barcode check code.
+
+CH_V02.57: YiDong EAP vertical CSV writes each Open/Short high-low point pair on its own row, counts pairs and forces Excel text format.
+
+CH_V02.56: Added independent editable Tooling to Kunshan JiaLianYi export settings. MES reply normalization accepts either traditional or simplified reference-unit pass text.
+
+CH_V02.55: YiDong EAP vertical CSV writes multipoint SHORT NG details in high-low pairs with UTF-8 BOM for Excel.
+
+CH_V02.54: Controller SHORT NG multipoint results display point A, point B and measured value separately, while older result formats remain supported.
+
+CH_V02.53: The custom CSV exporter uses a wide table with summary fields on the left and test items across columns, including optional points, limits, units and results.
+
+CH_V02.52: Controller SHORT NG results support multiple high-low-resistance groups separated by ^ in one item row; a trailing ^ is ignored.
+
+CH_V02.51: YiDong EAP export classification uses four configured test number groups. Unconfigured CompTest and FunTest default to Pass.
+
+CH_V02.50: YiDong EAP export no longer writes CompFailCount or FunFailCount; it retains CompTest and FunTest Pass/Fail results.
+
+CH_V02.49: YiDong EAP export no longer writes NG items and points for CompTest or FunTest; OpenTest and ShortTest retain spacing before failed items.
+
+CH_V02.48: YiDong EAP HYTM TXT output can use its own folder; vertical CSV and TXT need not share one archive folder.
+
+CH_V02.47: YiDong EAP export classifies items by configured test numbers as OpenTest, ShortTest, CompTest or FunTest and outputs corresponding results and NG details.
+
+CH_V02.46: YiDong EAP NG details include both the test item name and its points.
+
+CH_V02.45: Kunshan JiaLianYi reference-unit mode skips the pretest MES gate check; production retains it, while debug skips gate checks and uploads.
+
+CH_V02.44: After controller reset, DM immediately requests and confirms the Item1 header before sending DMOK or starting scanning, so the first result is not lost.
+
+CH_V02.42: YiDong EAP always outputs OpenTest, ShortTest, CompTest and FunTest. Untested types default to Pass; tested types use actual results and include NG type, count and points.
+
+CH_V02.41: Added a CSV file lock precheck in Kunshan JiaLianYi mode, renamed test-piece mode to production mode and added a mode indicator on the main screen.
+
+CH_V02.40: YiDong EAP vertical CSV reports NG type, count and points by Open, Short, Comp and Fun category. FunTest supports a fixed result and optional details.
+
+CH_V02.39: YiDong EAP no-scan mode skips SN route validation and station reporting and uploads only cumulative fixture use; barcoded tests retain the original route.
+
+CH_V02.37: Kunshan JiaLianYi MES uploads avoid internal Chinese status text. The cycle after emergency stop can use the DM timestamp to calculate duration.
+
+CH_V02.36: Removed duplicate barcode blocking based on exact or substring matches.
+
+CH_V02.35: Folder browse buttons use a compact light-blue outline with hover, pressed and disabled states.
+
+CH_V02.34: YiDong EAP can independently export horizontal and vertical CSV with separate folders; horizontal CSV follows the JiaLianYi format.
+
+CH_V02.33: Secondary windows cannot be resized. Basic and plugin settings support folder selection for save paths.
+
+CH_V02.32: Added Kunshan JiaLianYi mode with locked MES and export plugins, shared settings, communication and run mode controls, and a debug CSV suffix.
+
+CH_V02.31: After emergency reset or reconnection, missing Item1 headers trigger up to three automatic Itemnum requests; requests stop when the header arrives.
+
+CH_V02.30: Fixed the second normal result not being saved after emergency stop or controller timeout. Old-cycle data is discarded until the next DM; a new cycle no longer requires an Item1 header.
+
+CH_V02.29: Added USB POS HID scanner support and manual keyboard barcode entry. Scanner Enter terminators no longer activate connect/disconnect buttons.
+
+CH_V02.28: Test item column order is fixed while widths remain adjustable. YiDong CSV groups output by day. Automatic scanning defaults to a 10-second timeout and sends DMNG on timeout.
+
+CH_V02.27: Added YiDong EAP (TIMS backend) MES and result export plugins, with prescan route checks, post-test reporting, optional fixture/mold counters and raw CSV or HYTM TXT output.
+
+CH_V02.23: Alerts can be centered, enlarged and red. The custom CSV exporter combines summary fields and test items in one wide table.
+
+CH_V02.22: Product CSV output can create PASS/FAIL folders based on each result.
+
+CH_V02.21: appsettings.json supports automatic operator login. Operators retain save path and communication settings access.
+
+CH_V02.18: Added startup auto-connect switches for scanner and controller, with alerts and log entries on failure.
+
+CH_V02.17: Test results no longer open alerts. MES upload failure and timeout alerts use pale yellow and a queue without blocking testing; administrator tools include a simulated alert.
+
+CH_V02.16: YiDong EAP export adds HYTM Statistic TXT alongside raw CSV, with configurable path, board, device, operator and Block information.
+
+CH_V02.15: MES debug requests accept multiline Authorization, Token, X-Api-Key and other headers in Name: Value format.
+
+CH_V02.14: Added YiDong EAP MES and raw CSV export plugins with prescan SN/route checks, post-test PASS/FAIL reporting, optional fixture/mold counters and LOT, equipment, station and tooling settings.
+
+CH_V02.13: Released MES gate check diagnostics and station value corrections.
+
+CH_V02.12: MES gate checks and uploads use the station value from MES settings; legacy Mes.StationNo no longer overrides it.
+
+CH_V02.11: PBHMes gate check logs include URL, request, token state, HTTP status and response for checkRoute troubleshooting.
+
+CH_V02.10: Scanning uses automatic, manual or no-scan mode. Manual scan-ahead can record SCANOK before controller DM, then send DMOK and start testing.
+
+CH_V02.09: Switching MES online on the main screen pings only the configured MES host; reachability is enough without an MES login check.
+
+CH_V02: This version extends the earlier integrated framework with project profiles, MES communication plugins and result exporters for more field interfaces and file formats.
+
+An MES debug tool supports manual GET/POST requests, parameters or request bodies, and response inspection during integration and troubleshooting.
+
+The UI layout, main screen, settings entry points and feature groups were updated for easier navigation.
+
+Settings are grouped by role: scan rules, product recognition and linked limits in Basic Settings; controller handshake commands in Communication Settings; and MES settings in MES/Plugin Configuration.

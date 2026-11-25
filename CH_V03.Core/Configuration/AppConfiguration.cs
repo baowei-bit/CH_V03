@@ -91,8 +91,13 @@ public sealed class IdentityConfiguration
     public string BarcodeLimitLowerByValue { get; set; } = "L=550;B=480";
 }
 
-public sealed class CommunicationConfiguration
+public sealed class CommunicationConfiguration : System.ComponentModel.INotifyPropertyChanged
 {
+    private bool _lowerMachineHandshakeEnabled;
+    private bool _lowerMachineItemHandshakeEnabled;
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
     public bool AutoConnectScannerOnStartup { get; set; }
 
     public bool AutoConnectLowerMachineOnStartup { get; set; }
@@ -112,10 +117,50 @@ public sealed class CommunicationConfiguration
 
     public string TestItemRequestCommand { get; set; } = "Itemnum\\r\\n";
 
+    /// <summary>连接时发送握手命令并等待指定回复；启用时关闭 Itemnum 连接判据。</summary>
+    public bool LowerMachineHandshakeEnabled
+    {
+        get => _lowerMachineHandshakeEnabled;
+        set
+        {
+            if (_lowerMachineHandshakeEnabled == value) return;
+            if (value) LowerMachineItemHandshakeEnabled = false;
+            _lowerMachineHandshakeEnabled = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(LowerMachineHandshakeEnabled)));
+        }
+    }
+
+    /// <summary>以完整有效表头作为连接成功条件；启用时关闭 IsOpen 连接判据。</summary>
+    public bool LowerMachineItemHandshakeEnabled
+    {
+        get => _lowerMachineItemHandshakeEnabled;
+        set
+        {
+            if (_lowerMachineItemHandshakeEnabled == value) return;
+            if (value) LowerMachineHandshakeEnabled = false;
+            _lowerMachineItemHandshakeEnabled = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(LowerMachineItemHandshakeEnabled)));
+        }
+    }
+
+    public string LowerMachineHandshakeCommand { get; set; } = "IsOpen";
+
+    public string LowerMachineHandshakeResponse { get; set; } = "1";
+
     /// <summary>
     /// 下位机报文从开始接收到完整 end 的最长允许时间（秒）。
     /// </summary>
     public int LowerMachinePayloadTimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// 未收到 end 时，下位机报文可保留的最大字符数；超过后清空，防止异常数据无限累积。
+    /// </summary>
+    public int LowerMachineReceiveBufferMaximumCharacters { get; set; } = 30000;
+
+    /// <summary>
+    /// 发送 Itemnum 后，未收到 Item1 首段时再次请求前的等待时间（秒）。
+    /// </summary>
+    public int TestItemRequestRetryIntervalSeconds { get; set; } = 5;
 
     public bool BarcodeSendDefaultOkCommand { get; set; }
 
@@ -165,6 +210,15 @@ public sealed class DeviceConnectionConfiguration
 
     /// <summary>一次触发后等待有效画面的最长时间（毫秒）。</summary>
     public int CameraScanTimeoutMilliseconds { get; set; } = 3000;
+
+    /// <summary>归一化扫码选区；宽高为 0 表示识别整幅画面。</summary>
+    public double CameraRoiX { get; set; }
+    public double CameraRoiY { get; set; }
+    public double CameraRoiWidth { get; set; }
+    public double CameraRoiHeight { get; set; }
+
+    /// <summary>NoRead 时保存摄像头原始帧的目录。空值使用文档目录下的 CeHao\NoReadFrames。</summary>
+    public string CameraNoReadImageDirectory { get; set; } = string.Empty;
 
     /// <summary>扫描前请求 UVC 摄像头自动对焦；驱动不支持时自动忽略。</summary>
     public bool CameraAutoFocus { get; set; } = true;
@@ -217,30 +271,68 @@ public sealed class MesConfiguration
     public Dictionary<string, string> PluginOptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
-public sealed class OutputConfiguration
+public sealed class OutputConfiguration : System.ComponentModel.INotifyPropertyChanged
 {
-    public string CsvDirectory { get; set; } = "D:\\VisionResult\\FPC\\ProData\\";
+    private string _csvDirectory = "D:\\VisionResult\\FPC\\ProData\\";
+    private string _dclDirectory = "D:\\VisionResult\\FPC\\ProOut\\";
+    private string _logDirectory = "D:\\VisionResult\\FPC\\Log\\";
+    private string _customerPathRootDirectory = "D:\\VisionResult\\FPC\\CORR\\";
+    private string _singlePieceCsvDirectory = "D:\\VisionResult\\FPC\\SingleCsv\\";
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    public string CsvDirectory
+    {
+        get => _csvDirectory;
+        set => SetProperty(ref _csvDirectory, value);
+    }
 
     /// <summary>
     /// 启用后，产品 CSV 按测试结果写入 CsvDirectory 下的 PASS 或 FAIL 子目录。
     /// </summary>
     public bool ClassifyCsvByResult { get; set; }
 
-    public string DclDirectory { get; set; } = "D:\\VisionResult\\FPC\\ProOut\\";
+    public string DclDirectory
+    {
+        get => _dclDirectory;
+        set => SetProperty(ref _dclDirectory, value);
+    }
 
-    public string LogDirectory { get; set; } = "D:\\VisionResult\\FPC\\Log\\";
+    public string LogDirectory
+    {
+        get => _logDirectory;
+        set => SetProperty(ref _logDirectory, value);
+    }
 
     public bool CustomerPathSaveEnabled { get; set; }
 
-    public string CustomerPathRootDirectory { get; set; } = "D:\\VisionResult\\FPC\\CORR\\";
+    public string CustomerPathRootDirectory
+    {
+        get => _customerPathRootDirectory;
+        set => SetProperty(ref _customerPathRootDirectory, value);
+    }
 
     public string CsvName { get; set; } = "F3409-0021-0021CS";
 
     public bool SinglePieceCsvEnabled { get; set; }
 
-    public string SinglePieceCsvDirectory { get; set; } = "D:\\VisionResult\\FPC\\SingleCsv\\";
+    public string SinglePieceCsvDirectory
+    {
+        get => _singlePieceCsvDirectory;
+        set => SetProperty(ref _singlePieceCsvDirectory, value);
+    }
 
     public string SinglePieceCsvFileName { get; set; } = "{Result}_{SN}_{Time}.csv";
+
+    private void SetProperty<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return;
+        }
+
+        field = value;
+        PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
+    }
 }
 
 public sealed class ExportPluginConfiguration
@@ -388,12 +480,17 @@ public sealed class TestItemConfiguration
 
 public sealed class UserConfiguration
 {
+    /// <summary>Hide the marked special-item measurements on the live test screen.</summary>
+    public bool HideSpecialItemTestValues { get; set; }
+
     /// <summary>
     /// 嘉联益现场专用的测试及 MES 上报规则。
     /// </summary>
     public JiaLianYiConfiguration Jly { get; set; } = new();
 
     public bool AutoScan { get; set; } = true;
+
+    public bool JingWangKeyboardSn { get; set; }
 
     public bool ManualScanMode { get; set; }
 
@@ -415,6 +512,8 @@ public sealed class UserConfiguration
     public DailyYieldStatistics DailyYieldStatistics { get; set; } = new();
 
     public int ConsecutiveNgAlarmCount { get; set; } = 5;
+
+    public bool PreferJingWangLogin { get; set; }
 
     public string LoginJobNo { get; set; } = "admin";
 
@@ -452,15 +551,37 @@ public sealed class UserConfiguration
         },
         new UserAccountConfiguration
         {
+            UserName = "adminEng",
+            DisplayName = "Administrator",
+            Password = "admin",
+            Role = UserRole.Administrator
+        },
+        new UserAccountConfiguration
+        {
             UserName = "huaqin",
             DisplayName = "华勤管理员",
             Password = "admin",
             Role = UserRole.Administrator
-        }
+        },
+        new UserAccountConfiguration
+        {
+            UserName = "jialianyi",
+            DisplayName = "嘉联益工程师",
+            Password = "jialianyi",
+            Role = UserRole.Engineer
+        },
+        CreateJingWangAccount(),
+        CreateYiDongAccount()
     };
 
     public void EnsureDefaultAccounts()
     {
+        if (!Accounts.Any(account => string.Equals(account.UserName, "jingwang", StringComparison.OrdinalIgnoreCase)))
+            Accounts.Add(CreateJingWangAccount());
+        if (!Accounts.Any(account => string.Equals(account.UserName, "yidong", StringComparison.OrdinalIgnoreCase)))
+        {
+            Accounts.Add(CreateYiDongAccount());
+        }
         if (!Accounts.Any(account => string.Equals(account.UserName, "zuzhuang", StringComparison.OrdinalIgnoreCase)))
         {
             Accounts.Add(new UserAccountConfiguration
@@ -494,10 +615,24 @@ public sealed class UserConfiguration
         });
         UpsertDefaultAccount(new UserAccountConfiguration
         {
+            UserName = "adminEng",
+            DisplayName = "Administrator",
+            Password = "admin",
+            Role = UserRole.Administrator
+        });
+        UpsertDefaultAccount(new UserAccountConfiguration
+        {
             UserName = "huaqin",
             DisplayName = "华勤管理员",
             Password = "admin",
             Role = UserRole.Administrator
+        });
+        UpsertDefaultAccount(new UserAccountConfiguration
+        {
+            UserName = "jialianyi",
+            DisplayName = "嘉联益工程师",
+            Password = "jialianyi",
+            Role = UserRole.Engineer
         });
     }
 
@@ -515,6 +650,19 @@ public sealed class UserConfiguration
         existing.Password = account.Password;
         existing.Role = account.Role;
     }
+
+    private static UserAccountConfiguration CreateJingWangAccount() => new()
+    {
+        UserName = "jingwang", Password = "jingwang", DisplayName = "景旺管理员", Role = UserRole.Administrator
+    };
+
+    private static UserAccountConfiguration CreateYiDongAccount() => new()
+    {
+        UserName = "yidong",
+        DisplayName = "yidong 联合测试",
+        Password = "yidong",
+        Role = UserRole.Operator
+    };
 }
 
 public sealed class JiaLianYiConfiguration

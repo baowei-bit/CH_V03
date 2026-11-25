@@ -10,6 +10,8 @@ public interface ITestProtocolAdapter
 
     string LowerMachineNgCommand { get; }
 
+    string TestOverCommand => "TestOver\r\n";
+
     bool IsIgnoredPayload(string payload);
 
     bool IsStartSignal(string payload);

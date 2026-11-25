@@ -9,6 +9,8 @@ public sealed class ResultExportContext
 
     public TestFlowSnapshot Snapshot { get; init; } = new();
 
+    public bool IsJingWangAccount { get; init; }
+
     public IReadOnlyDictionary<string, string> PluginOptions { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     public string Guid { get; init; } = System.Guid.NewGuid().ToString();
@@ -85,7 +87,8 @@ public static class ResultExportFileName
 
     public static string ApplyTestPieceSuffix(AppConfiguration configuration, string fileName)
     {
-        if (!configuration.User.Jly.DebugMode || string.IsNullOrWhiteSpace(fileName))
+        if (!configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration
+            || !configuration.User.Jly.DebugMode || string.IsNullOrWhiteSpace(fileName))
         {
             return fileName;
         }

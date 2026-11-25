@@ -88,10 +88,25 @@
                            FontWeight="SemiBold"
                            Margin="0,0,0,12"
                            Visibility="{Binding IsOperatorPathOnlyMode, Converter={StaticResource BoolToVisibility}}" />
+                <Border Background="White" BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="日志保存设置" />
+                        <TextBlock Style="{StaticResource Label}" Text="运行日志路径" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="84" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding Configuration.Output.LogDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0" />
+                            <Button Grid.Column="1" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectLogDirectory_Click" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
                 <Border Background="White" BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,16"
                         Visibility="{Binding CanManageAllSettings, Converter={StaticResource BoolToVisibility}}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource SectionTitle}" Text="系统设置" />
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="文本与数值设置" />
                         <UniformGrid Columns="3">
                             <StackPanel Margin="0,0,14,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.CustomerName}">
                                 <TextBlock Style="{StaticResource Label}" Text="客户名称" />
@@ -109,62 +124,59 @@
                                 <TextBlock Style="{StaticResource Label}" Text="测试程式" />
                                 <TextBox Text="{Binding Configuration.Identity.TestProgram, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                            <StackPanel Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.MachineNo}">
+                            <StackPanel Margin="0,0,14,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.MachineNo}">
                                 <TextBlock Style="{StaticResource Label}" Text="机台编号" />
                                 <TextBox Text="{Binding Configuration.Identity.MachineNo, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                            <StackPanel Margin="0,0,14,0" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.BarcodeLength}">
+                            <StackPanel Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.BarcodeLength}">
                                 <TextBlock Style="{StaticResource Label}" Text="条码长度" />
                                 <TextBox Text="{Binding Configuration.Identity.BarcodeLength, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                            <StackPanel Margin="0,0,14,0" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.CodeSuffix}">
+                            <StackPanel Margin="0,0,14,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.CodeSuffix}">
                                 <TextBlock Style="{StaticResource Label}" Text="条码固定校验码" />
                                 <TextBox Text="{Binding Configuration.Identity.CodeSuffix, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                            <StackPanel Margin="0" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.ScanRulePrefix}">
+                            <StackPanel Margin="0,0,14,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.ScanRulePrefix}">
                                 <TextBlock Style="{StaticResource Label}" Text="扫码规则前缀" />
-                                <TextBox Text="{Binding Configuration.Identity.ScanRulePrefix, UpdateSourceTrigger=PropertyChanged}"
-                                         IsEnabled="{Binding Configuration.Identity.ScanRuleEnabled}" />
-                                <CheckBox Content="启用扫码前缀规则"
-                                          IsChecked="{Binding Configuration.Identity.ScanRuleEnabled}"
-                                          Margin="0,8,0,0"
-                                          Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.ScanRuleEnabled}" />
+                                <TextBox Text="{Binding Configuration.Identity.ScanRulePrefix, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Identity.ScanRuleEnabled}" />
                             </StackPanel>
-                            <StackPanel Margin="0" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvName}">
+                            <StackPanel Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvName}">
                                 <TextBlock Style="{StaticResource Label}" Text="CSV 文件前缀" />
                                 <TextBox Text="{Binding Configuration.Output.CsvName, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                            <CheckBox Content="启动自动连接扫码枪"
-                                      IsChecked="{Binding Configuration.Communication.AutoConnectScannerOnStartup}"
-                                      Margin="0,8,14,0"
-                                      VerticalAlignment="Center" />
-                            <CheckBox Content="启动自动连接下位机"
-                                      IsChecked="{Binding Configuration.Communication.AutoConnectLowerMachineOnStartup}"
-                                      Margin="0,8,14,0"
-                                      VerticalAlignment="Center" />
-                            <CheckBox Content="允许连续重复测试"
-                                      IsChecked="{Binding Configuration.Identity.AllowContinuousRepeatTest}"
-                                      Margin="0,8,14,0"
-                                      VerticalAlignment="Center"
-                                      ToolTip="未勾选时，与上一笔实际开始测试相同的条码将被阻止；先测试其他条码后可再次测试。" />
                             <StackPanel Margin="0,0,14,0">
                                 <TextBlock Style="{StaticResource Label}" Text="下位机报文超时（秒）" />
                                 <TextBox Text="{Binding Configuration.Communication.LowerMachinePayloadTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Foreground="#94A3B8" FontSize="11" Text="最小 1 秒；未收到 end 或 reset 时作废本次数据" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                <TextBlock Foreground="#94A3B8" FontSize="11" Text="未收到 end 或 reset 时作废本次数据" Margin="0,4,0,0" TextWrapping="Wrap" />
                             </StackPanel>
-                            <CheckBox Content="显示消息弹窗" IsChecked="{Binding Configuration.Popup.Enabled}" Margin="0,8,14,0" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Popup.Enabled}" />
-                            <CheckBox Content="弹窗需要确认" IsChecked="{Binding Configuration.Popup.RequireConfirmation}" Margin="0,8,14,0" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Popup.RequireConfirmation}" />
-                            <CheckBox Content="消息提醒居中并放大"
-                                      IsChecked="{Binding Configuration.Popup.CenterAndEnlarge}"
-                                      Margin="0,8,14,0"
-                                      VerticalAlignment="Center" />
-                            <CheckBox Content="红色提醒"
-                                      IsChecked="{Binding Configuration.Popup.RedAlert}"
-                                      Margin="0,8,14,0"
-                                      VerticalAlignment="Center" />
+                            <StackPanel Margin="0,0,14,0">
+                                <TextBlock Style="{StaticResource Label}" Text="下位机接收最大字符数" />
+                                <TextBox Text="{Binding Configuration.Communication.LowerMachineReceiveBufferMaximumCharacters, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Foreground="#94A3B8" FontSize="11" Text="未收到 end 时超过此值将清空缓存" Margin="0,4,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Margin="0">
+                                <TextBlock Style="{StaticResource Label}" Text="表头重试等待（秒）" />
+                                <TextBox Text="{Binding Configuration.Communication.TestItemRequestRetryIntervalSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Foreground="#94A3B8" FontSize="11" Text="发送 Itemnum 后未收到 Item1 首段时的再次请求等待时间" Margin="0,4,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
                         </UniformGrid>
 
                         <Border BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,14,0,0">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitle}" Text="功能开关" />
+                                <UniformGrid Columns="3">
+                                    <CheckBox Content="启用扫码前缀规则" IsChecked="{Binding Configuration.Identity.ScanRuleEnabled}" Margin="0,0,14,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Identity.ScanRuleEnabled}" />
+                                    <CheckBox Content="启动自动连接扫码枪" IsChecked="{Binding Configuration.Communication.AutoConnectScannerOnStartup}" Margin="0,0,14,12" VerticalAlignment="Center" />
+                                    <CheckBox Content="启动自动连接下位机" IsChecked="{Binding Configuration.Communication.AutoConnectLowerMachineOnStartup}" Margin="0,0,0,12" VerticalAlignment="Center" />
+                                    <CheckBox Content="允许连续重复测试" IsChecked="{Binding Configuration.Identity.AllowContinuousRepeatTest}" Margin="0,0,14,12" VerticalAlignment="Center" ToolTip="未勾选时，与上一笔实际开始测试相同的条码将被阻止；先测试其他条码后可再次测试。" />
+                                    <CheckBox Content="显示消息弹窗" IsChecked="{Binding Configuration.Popup.Enabled}" Margin="0,0,14,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Popup.Enabled}" />
+                                    <CheckBox Content="弹窗需要确认" IsChecked="{Binding Configuration.Popup.RequireConfirmation}" Margin="0,0,0,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Popup.RequireConfirmation}" />
+                                    <CheckBox Content="消息提醒居中并放大" IsChecked="{Binding Configuration.Popup.CenterAndEnlarge}" Margin="0,0,14,0" VerticalAlignment="Center" />
+                                    <CheckBox Content="红色提醒" IsChecked="{Binding Configuration.Popup.RedAlert}" Margin="0" VerticalAlignment="Center" />
+                                    <CheckBox Content="特殊项测试值隐藏" IsChecked="{Binding Configuration.User.HideSpecialItemTestValues}" Margin="0,0,14,0" VerticalAlignment="Center" ToolTip="隐藏 s03 ref 和 swipe phase0/phase1 offset/diff 项在主界面的测试值。" />
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border><Border BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Style="{StaticResource SectionTitle}" Text="扫码规则与限值" />
                                 <UniformGrid Columns="3">
@@ -202,52 +214,6 @@
                     </StackPanel>
                 </Border>
 
-                <Border Background="White" BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="8" Padding="18">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionTitle}" Text="保存路径" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="170" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="84" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="运行日志路径" Margin="0,0,12,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.LogDirectory}" />
-                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Configuration.Output.LogDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.LogDirectory}" />
-                            <Button Grid.Row="0" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectLogDirectory_Click" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.LogDirectory}" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="DCL/TXT 保存路径" Margin="0,0,12,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.DclDirectory}" />
-                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Configuration.Output.DclDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.DclDirectory}" />
-                            <Button Grid.Row="1" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectDclDirectory_Click" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.DclDirectory}" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="产品 CSV 保存路径" Margin="0,0,12,12" VerticalAlignment="Center" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvDirectory}" />
-                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Configuration.Output.CsvDirectory, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvDirectory}" />
-                            <Button Grid.Row="2" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectCsvDirectory_Click" Margin="0,0,0,12" Visibility="{Binding Configuration.Compatibility.VisibleConfigurationFields, Converter={StaticResource FieldVisibility}, ConverterParameter=Output.CsvDirectory}" />
-                            <CheckBox Grid.Row="3" Grid.Column="1" Content="按测试结果生成 PASS/FAIL 文件夹" IsChecked="{Binding Configuration.Output.ClassifyCsvByResult}" Margin="0,0,0,12" />
-                            <CheckBox Grid.Row="4" Grid.Column="1" Content="启用扫码客户路径保存" IsChecked="{Binding Configuration.Output.CustomerPathSaveEnabled}" Margin="0,0,0,12" />
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="客户路径保存根目录" Margin="0,0,12,12" VerticalAlignment="Center" />
-                            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Configuration.Output.CustomerPathRootDirectory, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Output.CustomerPathSaveEnabled}" Margin="0,0,8,12" />
-                            <Button Grid.Row="5" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectCustomerPathRootDirectory_Click" IsEnabled="{Binding Configuration.Output.CustomerPathSaveEnabled}" Margin="0,0,0,12" />
-                            <CheckBox Grid.Row="6" Grid.Column="1" Content="启用每片单独 CSV" IsChecked="{Binding Configuration.Output.SinglePieceCsvEnabled}" Margin="0,0,0,12" />
-                            <TextBlock Grid.Row="7" Grid.Column="0" Text="单片 CSV 保存路径" Margin="0,0,12,12" VerticalAlignment="Center" />
-                            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Configuration.Output.SinglePieceCsvDirectory, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Output.SinglePieceCsvEnabled}" Margin="0,0,8,12" />
-                            <Button Grid.Row="7" Grid.Column="2" Content="浏览" Style="{StaticResource FolderPickerButton}" Click="SelectSinglePieceCsvDirectory_Click" IsEnabled="{Binding Configuration.Output.SinglePieceCsvEnabled}" Margin="0,0,0,12" />
-                            <TextBlock Grid.Row="8" Grid.Column="0" Text="单片 CSV 名称规则" Margin="0,0,12,0" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="8" Grid.Column="1">
-                                <TextBox Text="{Binding Configuration.Output.SinglePieceCsvFileName, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Configuration.Output.SinglePieceCsvEnabled}" />
-                                <TextBlock Foreground="#94A3B8" FontSize="11" Text="可用变量：{Result}、{SN}、{Time}、{Name}，例如 {Result}_{SN}_{Time}.csv" TextWrapping="Wrap" Margin="0,4,0,0" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                </Border>
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

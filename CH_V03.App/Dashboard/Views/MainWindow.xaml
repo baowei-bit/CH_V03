@@ -57,6 +57,37 @@
             <Setter Property="Margin" Value="0,0,8,0" />
         </Style>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style x:Key="PageSwitchButton" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#0369A1" />
+            <Setter Property="Background" Value="#F0F9FF" />
+            <Setter Property="BorderBrush" Value="#7DD3FC" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E0F2FE" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Background" Value="#0EA5E9" />
+                                <Setter Property="BorderBrush" Value="#0284C7" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="StatusBallButton" TargetType="Button">
             <Setter Property="Width" Value="18" />
             <Setter Property="Height" Value="18" />
@@ -283,13 +314,9 @@
                     <MenuItem Header="基础配置"
                               Command="{Binding OpenBasicConfigurationCommand}"
                               IsEnabled="{Binding CanOpenBasicConfiguration}" />
-                    <MenuItem Header="导入客户方案"
-                              Command="{Binding ImportProjectProfileCommand}"
-                              Visibility="{Binding CanImportProjectProfile, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <Separator Visibility="{Binding CanImportProjectProfile, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <MenuItem Header="保存配置"
                               Command="{Binding SaveConfigurationCommand}"
-                              Visibility="{Binding CanManageSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                              Visibility="{Binding CanConfigureStation, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </MenuItem>
                 <MenuItem Header="设备通讯">
                     <MenuItem Header="扫码枪 / 下位机通讯"
@@ -300,16 +327,13 @@
                               IsEnabled="{Binding CanOpenCommunicationConfiguration}" />
                 </MenuItem>
                 <MenuItem Header="MES 与插件"
-                          Visibility="{Binding CanManageSystem, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <MenuItem Header="MES 配置"
-                              Command="{Binding OpenMesConfigurationCommand}"
-                              IsEnabled="{Binding CanManageSystem}" />
+                          Visibility="{Binding CanConfigureStation, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <MenuItem Header="MES调试工具"
                               Command="{Binding OpenMesDebugToolCommand}"
-                              IsEnabled="{Binding CanManageSystem}" />
+                              Visibility="{Binding CanManageSystem, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <MenuItem Header="插件配置"
                               Command="{Binding OpenPluginConfigurationCommand}"
-                              IsEnabled="{Binding CanManageSystem}" />
+                              IsEnabled="{Binding CanConfigureStation}" />
                 </MenuItem>
                 <MenuItem Header="测试流程"
                           Visibility="{Binding CanManageTestItems, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -339,12 +363,18 @@
                 <MenuItem Header="扫码枪 / 下位机通讯"
                           Command="{Binding OpenCommunicationConfigurationCommand}"
                           IsEnabled="{Binding CanOpenCommunicationConfiguration}" />
+                <MenuItem Header="内窥镜画面与识码设置"
+                          Command="{Binding OpenEndoscopeCommand}"
+                          IsEnabled="{Binding CanOpenCommunicationConfiguration}" />
                 <MenuItem Header="切换登录" Command="{Binding SwitchLoginCommand}" />
             </MenuItem>
             <MenuItem Header="运行数据"
                       Visibility="{Binding CanViewAnalysisInStandardMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <MenuItem Header="数据分析"
                           Command="{Binding OpenDataAnalysisCommand}"
+                          IsEnabled="{Binding CanViewAnalysis}" />
+                <MenuItem Header="测试趋势分析"
+                          Command="{Binding OpenTestTrendAnalysisCommand}"
                           IsEnabled="{Binding CanViewAnalysis}" />
             </MenuItem>
             <MenuItem Header="帮助"
@@ -356,8 +386,25 @@
 
         <Border DockPanel.Dock="Top" Background="White" BorderBrush="#38BDF8" BorderThickness="0,0,0,1" Padding="0,8">
             <Grid>
-                <TextBlock Text="{Binding HeaderTitle}" FontSize="30" Foreground="#1D4ED8" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                <Border Background="{Binding JiaLianYiRunModeBackground}"
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="10,0,10,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsYidong2, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <RadioButton Content="测试" GroupName="MainPages" Style="{StaticResource PageSwitchButton}"
+                                 IsChecked="{Binding IsSelected, ElementName=TestTab, Mode=TwoWay}" />
+                    <RadioButton Content="陪测板配置" GroupName="MainPages" Style="{StaticResource PageSwitchButton}"
+                                 IsChecked="{Binding IsSelected, ElementName=CompanionTab, Mode=TwoWay}" />
+                </StackPanel>
+                <Viewbox Grid.Column="1" Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding HeaderTitle}" FontSize="30" Foreground="#1D4ED8" />
+                </Viewbox>
+                <Button Grid.Column="2" Content="主动退料" Width="140" Height="34" Margin="10,0,14,0" VerticalAlignment="Center"
+                        Visibility="{Binding IsYidong2, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        Command="{Binding ReleaseFixtureCommand}" />
+                <Border Grid.Column="2" Background="{Binding JiaLianYiRunModeBackground}"
                         BorderBrush="{Binding JiaLianYiRunModeBackground}"
                         BorderThickness="1"
                         CornerRadius="4"
@@ -377,14 +424,53 @@
         </Border>
 
         <StatusBar DockPanel.Dock="Bottom" Background="#F0F9FF" BorderBrush="#7DD3FC" BorderThickness="0,1,0,0">
+            <StatusBar.ItemsPanel>
+                <ItemsPanelTemplate><DockPanel LastChildFill="True" /></ItemsPanelTemplate>
+            </StatusBar.ItemsPanel>
+            <StatusBarItem DockPanel.Dock="Right" HorizontalAlignment="Right"
+                           Visibility="{Binding IsYidong2, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Background="White" BorderBrush="{Binding CompanionResultBrush}" BorderThickness="1" CornerRadius="6" Padding="14,4" Margin="8,2">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontSize="16" Foreground="#DC2626" VerticalAlignment="Center" Margin="0,0,18,0"
+                                   MaxWidth="240" TextTrimming="CharacterEllipsis" ToolTip="{Binding CompanionFirstFailItem}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CompanionPhase}" Value="FAIL">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                            <Run Text="首个不良项：" /><Run Text="{Binding CompanionFirstFailItem, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Text="陪测板：" FontSize="18" VerticalAlignment="Center" Foreground="#374151" />
+                        <TextBlock Text="{Binding CompanionResultText}" Foreground="{Binding CompanionResultBrush}"
+                                   FontSize="24" FontWeight="Bold" MinWidth="80" TextAlignment="Center" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </StatusBarItem>
             <StatusBarItem Content="{Binding StatusMessage}" />
             <Separator />
             <StatusBarItem Content="{Binding LoginDisplay}" />
         </StatusBar>
 
+        <TabControl>
+        <TabControl.Template>
+            <ControlTemplate TargetType="TabControl">
+                <ContentPresenter ContentSource="SelectedContent" />
+            </ControlTemplate>
+        </TabControl.Template>
+        <TabItem x:Name="TestTab" Header="测试" IsSelected="True">
         <Grid Margin="10">
             <Grid.RowDefinitions>
-                <RowDefinition Height="210" />
+                <RowDefinition>
+                    <RowDefinition.Style><Style TargetType="RowDefinition">
+                        <Setter Property="Height" Value="230"/>
+                        <Style.Triggers><DataTrigger Binding="{Binding IsJingWangAccount}" Value="True"><Setter Property="Height" Value="Auto"/></DataTrigger></Style.Triggers>
+                    </Style></RowDefinition.Style>
+                </RowDefinition>
                 <RowDefinition Height="*" MinHeight="180" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
@@ -393,7 +479,11 @@
                 <Border Style="{StaticResource Panel}" Margin="0,0,0,8">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="42*" />
+                            <ColumnDefinition>
+                                <ColumnDefinition.Style><Style TargetType="ColumnDefinition"><Setter Property="Width" Value="42*"/>
+                                    <Style.Triggers><DataTrigger Binding="{Binding IsJingWangAccount}" Value="True"><Setter Property="Width" Value="24*"/></DataTrigger></Style.Triggers>
+                                </Style></ColumnDefinition.Style>
+                            </ColumnDefinition>
                             <ColumnDefinition Width="30*" />
                             <ColumnDefinition Width="28*" />
                         </Grid.ColumnDefinitions>
@@ -416,24 +506,27 @@
                             </StackPanel>
                             <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Label}" Text="SN" FontSize="18" />
                             <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource ValueBox}" Text="{Binding CurrentBarcode}" FontSize="18" />
+                            <TextBox Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" FontSize="18" Padding="8,4"
+                                     Visibility="{Binding KeyboardSnMode, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                     IsEnabled="{Binding CanEditJingWangFields}" KeyDown="KeyboardSn_KeyDown" ToolTip="输入 SN 后按回车" />
                             <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Label}" Text="FAIL项" FontSize="18" Margin="0,12,0,0" />
                             <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource ValueBox}" Text="{Binding LastFailItem}" FontSize="18" Margin="0,12,0,0" />
                         </Grid>
 
                         <Border Grid.Column="1" BorderBrush="#BAE6FD" BorderThickness="1,0,1,0" Padding="18,0">
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="{Binding TestState}" FontSize="56" FontWeight="Bold" HorizontalAlignment="Center">
+                            <Viewbox StretchDirection="DownOnly"><StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding DashboardTestState}" FontSize="56" FontWeight="Bold" HorizontalAlignment="Center">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="#2563EB" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TestState}" Value="PASS">
+                                                <DataTrigger Binding="{Binding DashboardTestState}" Value="PASS">
                                                     <Setter Property="Foreground" Value="#16A34A" />
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding TestState}" Value="FAIL">
+                                                <DataTrigger Binding="{Binding DashboardTestState}" Value="FAIL">
                                                     <Setter Property="Foreground" Value="#DC2626" />
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding TestState}" Value="WAIT">
+                                                <DataTrigger Binding="{Binding DashboardTestState}" Value="WAIT">
                                                     <Setter Property="Foreground" Value="#CA8A04" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -449,15 +542,44 @@
                                     <Run Text="上一次：" />
                                     <Run Text="{Binding LastTestResult, Mode=OneWay}" />
                                 </TextBlock>
+                                <TextBlock HorizontalAlignment="Center" FontSize="16" Margin="0,0,0,6" Visibility="{Binding IsJingWangAccount, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Run Text="测试数量 "/><Run Text="{Binding TotalCount, Mode=OneWay}"/><Run Text="    良率 "/><Run Text="{Binding YieldRateText, Mode=OneWay}"/>
+                                </TextBlock>
                                 <Button Content="清空良率"
                                         Command="{Binding ClearYieldCommand}"
                                         Height="34"
                                         MaxWidth="220"
                                         HorizontalAlignment="Stretch" />
-                            </StackPanel>
+                            </StackPanel></Viewbox>
                         </Border>
 
-                        <Grid Grid.Column="2" Margin="18,0,0,0">
+                        <Grid Grid.Column="2" MinHeight="184" Margin="8,0,0,0" Visibility="{Binding IsJingWangAccount, Converter={StaticResource BooleanToVisibilityConverter}}" IsEnabled="{Binding CanEditJingWangFields}">
+                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Label Grid.Row="0" Grid.Column="0" Content="人员工号" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" Margin="2" VerticalContentAlignment="Center" Text="{Binding JwEmployee, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Label Grid.Row="0" Grid.Column="2" Content="批次号"/>
+                            <TextBox Grid.Row="0" Grid.Column="3" Margin="2" Text="{Binding JwLot, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Label Grid.Row="1" Grid.Column="0" Content="料号" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" Margin="2" VerticalContentAlignment="Center" Text="{Binding JwProduct, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Label Grid.Row="1" Grid.Column="2" Content="工序代码" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="1" Grid.Column="3" Margin="2" VerticalContentAlignment="Center" Text="{Binding JwSpec, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Label Grid.Row="2" Grid.Column="0" Content="工单" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Margin="2" VerticalContentAlignment="Center" Text="{Binding JwWorkOrder, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Label Grid.Row="3" Grid.Column="0" Content="设备编码" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Margin="2" VerticalContentAlignment="Center" Text="{Binding JwEquipment, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Label Grid.Row="4" Content="汇总路径"/>
+                            <DockPanel Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3">
+                                <Button DockPanel.Dock="Right" Content="浏览" Padding="5,0" Command="{Binding BrowseJwPathCommand}" CommandParameter="summary"/>
+                                <TextBox Margin="2" VerticalContentAlignment="Center" ToolTip="{Binding JwSummaryPath}" Text="{Binding JwSummaryPath, UpdateSourceTrigger=PropertyChanged}"/>
+                            </DockPanel>
+                            <Label Grid.Row="5" Content="PCS 路径"/>
+                            <DockPanel Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3">
+                                <Button DockPanel.Dock="Right" Content="浏览" Padding="5,0" Command="{Binding BrowseJwPathCommand}" CommandParameter="piece"/>
+                                <TextBox Margin="2" VerticalContentAlignment="Center" ToolTip="{Binding JwPiecePath}" Text="{Binding JwPiecePath, UpdateSourceTrigger=PropertyChanged}"/>
+                            </DockPanel>
+                        </Grid>
+                        <Grid Grid.Column="2" Margin="18,0,0,0" Visibility="{Binding ShowStandardStatistics, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -594,6 +716,38 @@
                 </DockPanel>
             </Border>
         </Grid>
+        </TabItem>
+        <TabItem x:Name="CompanionTab" Header="陪测板配置" Visibility="{Binding IsYidong2, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid Margin="14">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition Width="2*"/></Grid.ColumnDefinitions>
+                <DockPanel Margin="0,0,12,0">
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding CompanionPhase}" FontSize="36" FontWeight="Bold" HorizontalAlignment="Center" Margin="8"/>
+                    <DataGrid ItemsSource="{Binding CompanionRows}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="No." Binding="{Binding Index}"/>
+                            <DataGridTextColumn Header="项目" Binding="{Binding ItemName}" Width="*"/>
+                            <DataGridTextColumn Header="上限" Binding="{Binding UpperLimit}"/>
+                            <DataGridTextColumn Header="下限" Binding="{Binding LowerLimit}"/>
+                            <DataGridTextColumn Header="实测值" Binding="{Binding TestValue}" Width="1.5*"/>
+                            <DataGridTextColumn Header="结果" Binding="{Binding Result}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+                <StackPanel Grid.Column="1">
+                    <GroupBox Header="Awinic USB 陪测板"><StackPanel Margin="8">
+                        <TextBlock Text="VID 344F　PID 1001"/>
+                        <WrapPanel Margin="0,8"><Button Content="连接" Command="{Binding CheckCompanionCommand}"/><Button Content="断开连接" Command="{Binding DisconnectCompanionCommand}" Margin="6,0"/></WrapPanel>
+                        <TextBlock Text="{Binding CompanionStatus}" TextWrapping="Wrap"/>
+                    </StackPanel></GroupBox>
+                    <GroupBox Header="Force_Test"><WrapPanel Margin="8">
+                        <Button Content="烧录固件" Command="{Binding BurnCompanionCommand}" IsEnabled="{Binding CanMaintainCompanion}"/>
+                        <Button Content="写入全部参数" Command="{Binding WriteCompanionCommand}" IsEnabled="{Binding CanMaintainCompanion}" Margin="6,0"/>
+                        <Button Content="读取芯片编号" Command="{Binding ReadCompanionIdCommand}"/>
+                    </WrapPanel></GroupBox>
+                    <GroupBox Header="本次会话统计"><TextBlock Margin="8" Text="{Binding CompanionStats}" TextWrapping="Wrap"/></GroupBox>
+                </StackPanel>
+            </Grid></TabItem>
+        </TabControl>
     </DockPanel>
 
     <Border Width="360"

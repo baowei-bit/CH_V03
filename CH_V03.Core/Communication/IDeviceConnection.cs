@@ -15,6 +15,11 @@ public interface IDeviceConnection : IAsyncDisposable
     Task SendStringAsync(string data, CancellationToken cancellationToken = default);
 }
 
+public interface IDeviceConnectionDiagnostics
+{
+    event EventHandler<DeviceCommunicationErrorEventArgs>? CommunicationError;
+}
+
 public sealed class DeviceDataReceivedEventArgs : EventArgs
 {
     public DeviceDataReceivedEventArgs(string text)
@@ -23,4 +28,14 @@ public sealed class DeviceDataReceivedEventArgs : EventArgs
     }
 
     public string Text { get; }
+}
+
+public sealed class DeviceCommunicationErrorEventArgs : EventArgs
+{
+    public DeviceCommunicationErrorEventArgs(string message)
+    {
+        Message = message;
+    }
+
+    public string Message { get; }
 }

@@ -21,12 +21,14 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
 
     public bool CanManageAccounts { get; }
 
+    public bool ShowJiaLianYiSpecialModes => Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration;
+
     public bool IsStandardPieceMode
     {
-        get => Configuration.Jly.RunMode == JiaLianYiRunMode.StandardPiece;
+        get => ShowJiaLianYiSpecialModes && Configuration.Jly.RunMode == JiaLianYiRunMode.StandardPiece;
         set
         {
-            if (value)
+            if (value && ShowJiaLianYiSpecialModes)
             {
                 Configuration.Jly.RunMode = JiaLianYiRunMode.StandardPiece;
                 NotifyJiaLianYiModeChanged();
@@ -36,10 +38,10 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
 
     public bool IsTestPieceMode
     {
-        get => Configuration.Jly.RunMode == JiaLianYiRunMode.TestPiece;
+        get => ShowJiaLianYiSpecialModes && Configuration.Jly.RunMode == JiaLianYiRunMode.TestPiece;
         set
         {
-            if (value)
+            if (value && ShowJiaLianYiSpecialModes)
             {
                 Configuration.Jly.RunMode = JiaLianYiRunMode.TestPiece;
                 NotifyJiaLianYiModeChanged();
@@ -49,14 +51,28 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
 
     public bool IsDebugMode
     {
-        get => Configuration.Jly.RunMode == JiaLianYiRunMode.Debug;
+        get => ShowJiaLianYiSpecialModes && Configuration.Jly.RunMode == JiaLianYiRunMode.Debug;
         set
         {
-            if (value)
+            if (value && ShowJiaLianYiSpecialModes)
             {
                 Configuration.Jly.RunMode = JiaLianYiRunMode.Debug;
                 NotifyJiaLianYiModeChanged();
             }
+        }
+    }
+
+    public bool IsJingWangAccount { get; init; }
+
+    public bool IsKeyboardSnMode
+    {
+        get => IsJingWangAccount && Configuration.ManualScanMode && Configuration.JingWangKeyboardSn;
+        set
+        {
+            if (!value) return;
+            Configuration.AutoScan = Configuration.NoScanMode = Configuration.ScanAheadEnabled = false;
+            Configuration.ManualScanMode = Configuration.JingWangKeyboardSn = true;
+            NotifyScanModeChanged();
         }
     }
 
@@ -70,6 +86,7 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
                 return;
             }
 
+            Configuration.JingWangKeyboardSn = false;
             Configuration.AutoScan = true;
             Configuration.ManualScanMode = false;
             Configuration.NoScanMode = false;
@@ -80,7 +97,7 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
 
     public bool IsManualScanMode
     {
-        get => Configuration.ManualScanMode;
+        get => Configuration.ManualScanMode && !IsKeyboardSnMode;
         set
         {
             if (!value)
@@ -88,6 +105,7 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
                 return;
             }
 
+            Configuration.JingWangKeyboardSn = false;
             Configuration.AutoScan = false;
             Configuration.ManualScanMode = true;
             Configuration.NoScanMode = false;
@@ -105,6 +123,7 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
                 return;
             }
 
+            Configuration.JingWangKeyboardSn = false;
             Configuration.AutoScan = false;
             Configuration.ManualScanMode = false;
             Configuration.NoScanMode = true;
@@ -121,6 +140,7 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
     {
         if (!Configuration.AutoScan && !Configuration.ManualScanMode && !Configuration.NoScanMode)
         {
+            Configuration.JingWangKeyboardSn = false;
             Configuration.AutoScan = true;
         }
 
@@ -129,11 +149,11 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
             Configuration.ScanAheadEnabled = false;
         }
 
-        if (!double.IsFinite(Configuration.Jly.YieldUploadThreshold))
+        if (ShowJiaLianYiSpecialModes && !double.IsFinite(Configuration.Jly.YieldUploadThreshold))
         {
             Configuration.Jly.YieldUploadThreshold = 90;
         }
-        else
+        else if (ShowJiaLianYiSpecialModes)
         {
             Configuration.Jly.YieldUploadThreshold = Math.Clamp(Configuration.Jly.YieldUploadThreshold, 0, 100);
         }
@@ -143,6 +163,7 @@ public sealed class UserConfigurationViewModel : DialogViewModelBase
 
     private void NotifyScanModeChanged()
     {
+        OnPropertyChanged(nameof(IsKeyboardSnMode));
         OnPropertyChanged(nameof(IsAutoScanMode));
         OnPropertyChanged(nameof(IsManualScanMode));
         OnPropertyChanged(nameof(IsNoScanMode));

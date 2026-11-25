@@ -12,7 +12,7 @@ public partial class CommunicationConfigurationWindow : Window
             if (DialogResult == true && HasValidationError(this))
             {
                 e.Cancel = true;
-                MessageBox.Show(this, "参数格式不正确，请修正标红的输入框后再保存。", "参数无效");
+                MessageBox.Show(this, CH_V03.App.Localization.UiLanguage.Text("参数格式不正确，请修正标红的输入框后再保存。"), CH_V03.App.Localization.UiLanguage.Text("参数无效"));
             }
         };
     }

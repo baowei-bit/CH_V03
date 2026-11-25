@@ -1,0 +1,10 @@
+pc_insp_data: count=274, latest=2026-10-23 17:23:18
+pc_insph_data: count=1, latest=2026-10-23 17:23:18
+pc_img_data: count=1, latest=2026-10-23 17:23:18
+pc_img_rel_data: count=1, latest=2026-10-23 17:23:18
+pc_data_scan: count=0, latest=无
+pc_data_craft: count=0, latest=无
+pc_data_alarm: count=4, latest=2026-10-23 17:23:06
+pc_data_emp: count=0, latest=无
+正式库关联核对：条码=NOSCAN20261023172318，原始结果=0，DATAGUID=D47542E338F0A53459D6B283E049DD66，明细=274，文件类型=CSV，CSV文件存在=True
+临时测试库剩余：0

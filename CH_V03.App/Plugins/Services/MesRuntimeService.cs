@@ -22,6 +22,13 @@ public sealed class MesRuntimeService
 
     public IReadOnlyList<IMesPlugin> Plugins => _plugins;
 
+    public static bool IsJingWang(AppConfiguration configuration) =>
+        string.Equals(configuration.Mes.SelectedPlugin, "JingWang.Eap", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsJingWangWebApiEnabled(AppConfiguration configuration) =>
+        IsJingWang(configuration)
+        && !string.Equals(configuration.Mes.PluginOptions.GetValueOrDefault("EnableWebApi", "true"), "false", StringComparison.OrdinalIgnoreCase);
+
     public IMesPlugin? GetSelectedPlugin(AppConfiguration configuration)
     {
         if (!configuration.Mes.Enabled || string.IsNullOrWhiteSpace(configuration.Mes.SelectedPlugin))
@@ -35,6 +42,12 @@ public sealed class MesRuntimeService
 
     public async Task<MesResult> TestConnectionAsync(AppConfiguration configuration, CancellationToken cancellationToken = default)
     {
+        if (IsJingWang(configuration))
+        {
+            var selected = GetSelectedPlugin(configuration);
+            return selected is null ? MesResult.Fail("未找到景旺 MES 插件") :
+                await selected.TestConnectionAsync(BuildOptions(configuration), cancellationToken);
+        }
         var mesAddress = GetMesAddress(configuration);
         if (!Uri.TryCreate(mesAddress, UriKind.Absolute, out var mesUri))
         {
@@ -54,6 +67,57 @@ public sealed class MesRuntimeService
             return MesResult.Fail($"MES 主机不可达：{mesUri.Host}（{ex.Message}）");
         }
     }
+
+    public async Task<MesResult> StartJingWangShiftAsync(AppConfiguration configuration, CancellationToken cancellationToken = default)
+    {
+        if (GetSelectedPlugin(configuration) is not IJingWangMesPlugin plugin) return MesResult.Fail("未找到景旺 MES 插件");
+        if (!IsJingWangWebApiEnabled(configuration)) return MesResult.Success("景旺 Web API 未启用，仅连接数据库", "SKIPPED");
+        if (string.Equals(configuration.Mes.PluginOptions.GetValueOrDefault("EnableEmployee", "true"), "false", StringComparison.OrdinalIgnoreCase))
+            return MesResult.Success("员工上下机未启用，已跳过员工上机", "SKIPPED");
+        return await plugin.LoginAsync(BuildOptions(configuration), new MesCheckRequest
+        {
+            UserNo = configuration.Mes.PluginOptions.GetValueOrDefault("EmployeeCardCode", string.Empty)
+        }, cancellationToken);
+    }
+
+    public async Task<MesResult> EndJingWangShiftAsync(AppConfiguration configuration, CancellationToken cancellationToken = default) =>
+        GetSelectedPlugin(configuration) is IJingWangMesPlugin plugin
+            ? await plugin.EndShiftAsync(BuildOptions(configuration), cancellationToken)
+            : MesResult.Fail("未找到景旺 MES 插件");
+
+    public async Task<MesResult> RecordJingWangScanAsync(AppConfiguration configuration, string barcode, CancellationToken cancellationToken = default) =>
+        GetSelectedPlugin(configuration) is IJingWangMesPlugin plugin
+            ? await plugin.RecordScanAsync(BuildOptions(configuration), barcode, configuration.Mes.UserNo, cancellationToken)
+            : MesResult.Fail("未找到景旺 MES 插件");
+
+    public async Task<MesResult> RecordJingWangAlarmAsync(AppConfiguration configuration, string code, string description, bool active, CancellationToken cancellationToken = default) =>
+        GetSelectedPlugin(configuration) is IJingWangMesPlugin plugin
+            ? await plugin.RecordAlarmAsync(BuildOptions(configuration), code, description, active, cancellationToken)
+            : MesResult.Fail("未找到景旺 MES 插件");
+
+    public async Task<MesResult> CollectJingWangCraftAsync(AppConfiguration configuration, TestFlowSnapshot snapshot, CancellationToken cancellationToken = default) =>
+        GetSelectedPlugin(configuration) is IJingWangMesPlugin plugin
+            ? await plugin.CollectCraftAsync(BuildOptions(configuration), snapshot.Items.Select(item => new MesTestItem
+            {
+                Name = item.ItemName, Value = item.TestValue, Unit = item.Unit, Result = item.Result,
+                LowerLimit = item.LowerLimit, UpperLimit = item.UpperLimit
+            }).ToArray(), snapshot.EndTime ?? DateTime.Now, cancellationToken)
+            : MesResult.Fail("未找到景旺 MES 插件");
+
+    public IReadOnlyList<JingWangPendingRecord> GetJingWangPendingRecords(AppConfiguration configuration) =>
+        GetSelectedPlugin(configuration) is IJingWangMesPlugin plugin
+            ? plugin.GetPendingRecords(BuildOptions(configuration))
+            : Array.Empty<JingWangPendingRecord>();
+
+    public async Task<MesResult> RetryJingWangDatabaseAsync(AppConfiguration configuration, string id, CancellationToken cancellationToken = default) =>
+        GetSelectedPlugin(configuration) is IJingWangMesPlugin plugin
+            ? await plugin.RetryPendingDatabaseAsync(BuildOptions(configuration), id, cancellationToken)
+            : MesResult.Fail("未找到景旺 MES 插件");
+
+    public async Task<MesResult> RetryJingWangApisAsync(AppConfiguration configuration, string id, CancellationToken cancellationToken = default) =>
+        GetSelectedPlugin(configuration) is IJingWangMesPlugin plugin
+            ? await plugin.RetryPendingApisAsync(BuildOptions(configuration), id, cancellationToken)
+            : MesResult.Fail("未找到景旺 MES 插件");
     public async Task<MesResult> CheckBeforeTestAsync(AppConfiguration configuration, string barcode, CancellationToken cancellationToken = default)
     {
         var plugin = GetSelectedPlugin(configuration);
@@ -63,6 +127,9 @@ public sealed class MesRuntimeService
                 ? MesResult.Fail($"未找到 MES 插件：{configuration.Mes.SelectedPlugin}")
                 : MesResult.Success("MES 未启用，跳过卡关");
         }
+
+        if (IsJingWang(configuration) && !IsJingWangWebApiEnabled(configuration))
+            return MesResult.Success("景旺 Web API 未启用，已跳过过站接口，本次记录未过站", "SKIPPED");
 
         if (!plugin.Capabilities.SupportsPreCheck)
         {
@@ -84,7 +151,8 @@ public sealed class MesRuntimeService
         AppConfiguration configuration,
         TestFlowSnapshot snapshot,
         IReadOnlyList<MesUploadFile>? files = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string precheckStatus = "")
     {
         var plugin = GetSelectedPlugin(configuration);
         if (plugin is null)
@@ -103,6 +171,7 @@ public sealed class MesRuntimeService
         var request = new MesUploadRequest
         {
             Barcode = snapshot.Barcode,
+            PrecheckStatus = precheckStatus,
             ProdNo = configuration.Mes.ProdNo,
             StationNo = GetStationNo(configuration),
             Result = snapshot.IsPass == true ? "PASS" : "FAIL",
@@ -111,7 +180,7 @@ public sealed class MesRuntimeService
             Remark = configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration
                 ? string.Empty
                 : snapshot.Message,
-            UserNo = configuration.Mes.UserNo,
+            UserNo = plugin is IJingWangMesPlugin jingWang ? jingWang.CurrentEmployeeNo : configuration.Mes.UserNo,
             PackNo = configuration.Mes.PackNo,
             Retest = GetMesOption(configuration, "Retest", string.Empty),
             Weight = GetMesOption(configuration, "Weight", string.Empty),
@@ -128,6 +197,12 @@ public sealed class MesRuntimeService
             }).ToList(),
             Files = files ?? Array.Empty<MesUploadFile>()
         };
+
+        if (IsJingWang(configuration))
+        {
+            // 景旺用持久记录 ID 去重；30 秒窗口会误判同一条码的真实重测。
+            return await plugin.UploadResultAsync(options, request, cancellationToken);
+        }
 
         CleanupExpiredUploads();
         var deduplicationKey = BuildUploadDeduplicationKey(plugin.Id, request);
@@ -187,6 +262,23 @@ public sealed class MesRuntimeService
         foreach (var item in configuration.Mes.PluginOptions)
         {
             values[item.Key] = item.Value;
+        }
+
+        if (IsJingWang(configuration))
+        {
+            values["OnlineMode"] = configuration.Mes.OnlineMode ? "true" : "false";
+            var encrypted = configuration.Mes.PluginOptions.GetValueOrDefault("DbPasswordProtected", string.Empty);
+            if (!string.IsNullOrWhiteSpace(encrypted))
+            {
+                try { values["DbPassword"] = MesSecretProtector.Unprotect(encrypted); }
+                catch (Exception) { values["DbPassword"] = string.Empty; }
+            }
+            var s3Secret = configuration.Mes.PluginOptions.GetValueOrDefault("S3SecretKeyProtected", string.Empty);
+            if (!string.IsNullOrWhiteSpace(s3Secret))
+            {
+                try { values["S3SecretKey"] = MesSecretProtector.Unprotect(s3Secret); }
+                catch (Exception) { values["S3SecretKey"] = string.Empty; }
+            }
         }
 
         if (string.Equals(configuration.Mes.SelectedPlugin, "HongXin.OA", StringComparison.OrdinalIgnoreCase))

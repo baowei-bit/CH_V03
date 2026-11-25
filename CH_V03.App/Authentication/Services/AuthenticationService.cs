@@ -6,6 +6,14 @@ public sealed class AuthenticationService
 {
     public UserSession CurrentSession { get; private set; } = UserSession.Guest;
 
+    public bool ApplyAccountMode(AppConfiguration configuration)
+    {
+        var enabled = CurrentSession.IsJiaLianYiAccount;
+        var changed = configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration != enabled;
+        configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration = enabled;
+        return changed;
+    }
+
     public bool Login(UserConfiguration configuration, string userName, string password, out string message)
     {
         var account = configuration.Accounts.FirstOrDefault(item =>
@@ -92,15 +100,21 @@ public sealed class UserSession
     public bool IsDiagnosticMode => IsAuthenticated
         && string.Equals(UserName, "zuzhuang", StringComparison.OrdinalIgnoreCase);
 
-    public bool CanManageSystem => Role is UserRole.Engineer or UserRole.Administrator;
+    public bool IsJiaLianYiAccount => IsAuthenticated && Module == TestModule.Electrical
+        && string.Equals(UserName, "jialianyi", StringComparison.OrdinalIgnoreCase);
 
-    public bool CanManageTestItems => Role is UserRole.Administrator;
+    public bool IsYidongAccount => IsAuthenticated && Module == TestModule.Electrical
+        && string.Equals(UserName, "yidong", StringComparison.OrdinalIgnoreCase);
 
-    public bool CanManageUsers => Role is UserRole.Engineer or UserRole.Administrator;
+    public bool CanManageSystem => IsYidongAccount || Role is UserRole.Engineer or UserRole.Administrator;
 
-    public bool CanImportProjectProfile => Role is UserRole.Administrator;
+    public bool CanManageTestItems => IsYidongAccount || Role is UserRole.Administrator;
 
-    public bool CanViewAnalysis => Role is UserRole.Technician or UserRole.Engineer or UserRole.Administrator;
+    public bool CanManageUsers => IsYidongAccount || Role is UserRole.Engineer or UserRole.Administrator;
+
+    public bool CanImportProjectProfile => IsYidongAccount || Role is UserRole.Administrator;
+
+    public bool CanViewAnalysis => IsYidongAccount || Role is UserRole.Technician or UserRole.Engineer or UserRole.Administrator;
 
     public string RoleText => Role switch
     {

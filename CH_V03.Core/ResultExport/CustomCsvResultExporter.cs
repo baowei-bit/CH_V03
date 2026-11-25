@@ -11,6 +11,9 @@ public sealed class CustomCsvResultExporter : IResultExporter, IResultExportPlug
 
     public IReadOnlyList<ExportPluginConfigField> GetConfigFields() =>
     [
+        TextField("CsvDirectory", "CSV 保存路径", "",
+            "选择自定义 CSV 的保存文件夹；留空时沿用默认 CSV 保存路径。"),
+        new ExportPluginConfigField { Key = SpecialTestValue.OptionKey, DisplayName = "特殊项测试值隐藏", DefaultValue = "false", IsCheckbox = true },
         TextField("FileNameTemplate", "文件名模板", "{ProductName}_{TestType}_{SN}_{Result}_{Time}",
             "可用占位符：{ProductName}、{TestType}、{SN}、{Result}、{Time}；例如：{ProductName}_{Result}_{Time}"),
         CheckField("HeaderSN", "表头：SN 码"),
@@ -33,7 +36,8 @@ public sealed class CustomCsvResultExporter : IResultExporter, IResultExportPlug
     {
         try
         {
-            var directory = CsvOutputDirectoryResolver.Resolve(context.Configuration, context.Snapshot.IsPass == true);
+            context.PluginOptions.TryGetValue("CsvDirectory", out var configuredDirectory);
+            var directory = CsvOutputDirectoryResolver.Resolve(context.Configuration, context.Snapshot.IsPass == true, configuredDirectory);
             Directory.CreateDirectory(directory);
             var filePath = Path.Combine(directory, BuildFileName(context));
             await File.WriteAllTextAsync(filePath, BuildContent(context), new UTF8Encoding(true), cancellationToken);
@@ -106,7 +110,7 @@ public sealed class CustomCsvResultExporter : IResultExporter, IResultExportPlug
         AddItemRow(lines, enabledSummary.Count, items, "Measurement Unit----->", "BodyUnit", item => item.Unit, context);
         if (IsEnabled(context, "BodyTestValue"))
         {
-            lines.Add(Join(enabledSummary.Select(value => value.Value).Concat(items.Select(item => item.TestValue))));
+            lines.Add(Join(enabledSummary.Select(value => value.Value).Concat(items.Select(item => SpecialTestValue.CsvValue(context, item)))));
         }
 
         AddItemRow(lines, enabledSummary.Count, items, "测试结果----->", "BodyResult", item => item.Result, context);

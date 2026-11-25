@@ -26,8 +26,9 @@ public sealed class ExportRuntimeService
 
     public IReadOnlyList<IResultExportPlugin> Plugins => _plugins;
 
-    public async Task<IReadOnlyList<ResultExportResult>> ExportAsync(AppConfiguration configuration, TestFlowSnapshot snapshot, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ResultExportResult>> ExportAsync(AppConfiguration configuration, TestFlowSnapshot snapshot, CancellationToken cancellationToken = default, bool jingWang = false)
     {
+        var recordGuid = Guid.NewGuid().ToString();
         var results = new List<ResultExportResult>();
         foreach (var pluginId in configuration.Export.EnabledPluginIds.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -41,6 +42,8 @@ public sealed class ExportRuntimeService
             var options = configuration.Export.GetOptions(plugin.Id);
             var context = new ResultExportContext
             {
+                IsJingWangAccount = jingWang,
+                Guid = jingWang ? recordGuid : Guid.NewGuid().ToString(),
                 Configuration = configuration,
                 Snapshot = snapshot,
                 PluginOptions = options
@@ -53,8 +56,11 @@ public sealed class ExportRuntimeService
         {
             var context = new ResultExportContext
             {
+                IsJingWangAccount = jingWang,
+                Guid = jingWang ? recordGuid : Guid.NewGuid().ToString(),
                 Configuration = configuration,
-                Snapshot = snapshot
+                Snapshot = snapshot,
+                PluginOptions = configuration.Export.GetOptions("Default.Csv")
             };
 
             results.Add(await _singlePieceCsvExporter.ExportAsync(context, cancellationToken));

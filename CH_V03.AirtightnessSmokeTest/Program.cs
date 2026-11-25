@@ -106,6 +106,15 @@ var customResultStore = new AirtightnessResultStore(store.RecordsDirectory);
 customResultStore.Record(Guid.NewGuid(), now, "qimi", custom, r1);
 restarted.Refresh();
 Check(restarted.Statistics.Total == 1 && Directory.EnumerateFiles(custom.RecordsDirectory, "*.json").Count() == 1, "new results written and read in selected directory");
+var csvResultStore = new AirtightnessResultStore(Path.Combine(root, "csv-time-check"));
+var csvCycle = Guid.NewGuid();
+csvResultStore.RecordCompletedCycle(csvCycle, now, "qimi", custom, "CH1-001", "CH2-001", r1, r2);
+var csvPath = csvResultStore.GetCsvFilePath(now);
+var csvLines = File.ReadAllLines(csvPath);
+Check(csvLines[0].Contains("测试当前时间", StringComparison.Ordinal) &&
+      csvLines.Any(line => line.StartsWith(csvCycle.ToString("N") + ",", StringComparison.Ordinal) &&
+                           System.Text.RegularExpressions.Regex.IsMatch(line, "^" + csvCycle.ToString("N") + @",\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},")),
+      "completed-cycle CSV includes current test time to seconds");
 Check(Directory.EnumerateFiles(originalRecordsDirectory, "*.json").Count() == 3, "original records retained after directory change");
 restarted.AddLog("自定义路径日志检查");
 Check(File.ReadAllText(Path.Combine(custom.LogDirectory, $"{DateTime.Now:yyyy-MM-dd}.log")).Contains("自定义路径日志检查"), "logs written to selected directory immediately");

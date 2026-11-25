@@ -16,8 +16,21 @@ public partial class AirtightnessWindow : Window
     {
         DataContext = new AirtightnessViewModel(session, store);
         InitializeComponent();
+        Model.TestCycleCompleted += FocusChannel1ForNextManualScan;
     }
 
+
+    private void FocusChannel1ForNextManualScan()
+    {
+        if (!Model.IsManualScanMode) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            Channel1BarcodeInput.Clear();
+            Channel2BarcodeInput.Clear();
+            Channel1BarcodeInput.Focus();
+            Keyboard.Focus(Channel1BarcodeInput);
+        });
+    }
     private AirtightnessViewModel Model => (AirtightnessViewModel)DataContext;
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -53,17 +66,34 @@ public partial class AirtightnessWindow : Window
         }
     }
 
-    private async void StartTest_Click(object sender, RoutedEventArgs e)
+    private async void PrepareInstrumentTest_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            await Model.StartScanAsync();
-            if (Model.IsManualScanMode) Channel1BarcodeInput.Focus();
-        }
+        try { await Model.PrepareInstrumentTestAsync(); }
         catch (Exception exception)
         {
-            Model.AddLog($"开始测试失败：{exception.Message}", "错误");
-            MessageBox.Show(this, exception.Message, "开始测试失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            Model.AddLog($"准备等待气密仪面板 Start 失败：{exception.Message}", "错误");
+            MessageBox.Show(this, exception.Message, "无法准备等待", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void StopInstrumentTest_Click(object sender, RoutedEventArgs e)
+    {
+        try { await Model.StopInstrumentTestAsync(); }
+        catch (Exception exception) { Model.AddLog($"停止气密测试失败：{exception.Message}", "错误"); MessageBox.Show(this, exception.Message, "停止失败", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void ClearCurrentStatistics_Click(object sender, RoutedEventArgs e)
+    {
+        var confirmation = MessageBox.Show(this,
+            "将当前 PASS、FAIL、总数、良率和当前列表清零，并从现在开始重新统计。\n\n不会删除 CSV、JSON 正式测试档案。是否继续？",
+            "清除当前记录", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes) return;
+
+        try { Model.ClearCurrentStatistics(); }
+        catch (Exception exception)
+        {
+            Model.AddLog($"清除当前统计失败：{exception.Message}", "错误");
+            MessageBox.Show(this, exception.Message, "清除失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -80,6 +110,11 @@ public partial class AirtightnessWindow : Window
             if (_logWindow.WindowState == WindowState.Minimized) _logWindow.WindowState = WindowState.Normal;
             _logWindow.Activate();
         }
+    }
+    private void BasicConfiguration_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Model.CanConfigure) return;
+        new AirtightnessBasicConfigurationWindow(Model) { Owner = this }.ShowDialog();
     }
     private void Configure_Click(object sender, RoutedEventArgs e)
     {
@@ -105,6 +140,11 @@ public partial class AirtightnessWindow : Window
         catch (Exception exception) { Model.AddLog($"气密仪连接失败：{exception.Message}", "错误"); MessageBox.Show(this, exception.Message, "气密仪连接失败", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
+    private async void ToggleMotionConnection_Click(object sender, RoutedEventArgs e)
+    {
+        try { await Model.ToggleMotionConnectionAsync(); }
+        catch (Exception exception) { Model.AddLog($"下位机连接失败：{exception.Message}", "错误"); MessageBox.Show(this, exception.Message, "下位机连接失败", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
     private void Channel1BarcodeInput_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || sender is not TextBox box) return;

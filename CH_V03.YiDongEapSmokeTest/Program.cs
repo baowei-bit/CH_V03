@@ -123,8 +123,8 @@ try
     Assert(csv.Contains("\"FunTest:\"", StringComparison.Ordinal), "CSV FunTest section");
     Assert(csv.Contains("\"Step\",\"BX\",\"Descrip\",\"Module\",\"Type\",\"Function\",\"Delay\",\"Test\",\"Dev%\",\"-%\",\"+%\",\"Result\",\"Info\"", StringComparison.Ordinal), "CSV FunTest header");
     Assert(csv.Contains("\"1\",\"B1\",\"A1\",\"\",\"R1\"", StringComparison.Ordinal), "CSV test row");
-    Assert(csv.Contains("\"1\",\"B1\",\"A1\",\"\",\"R1\",\"9~11\",\"\",\"A1\",\"B1\"", StringComparison.Ordinal), "CSV CompTest point limits");
-    Assert(csv.Contains("\"2\",\"B1\",\"C1\",\"\",\"\",\"\",\"\",\"0.867\",\"\",\"B2\",\"A2\",\"OK\",\"A2 - B2\"", StringComparison.Ordinal), "CSV FunTest point limits");
+    Assert(csv.Contains("\"1\",\"B1\",\"A1\",\"\",\"R1\",\"9~11\",\"\",\"11\",\"9\"", StringComparison.Ordinal), "CSV CompTest numeric limits");
+    Assert(csv.Contains("\"2\",\"B1\",\"C1\",\"\",\"\",\"\",\"\",\"0.867\",\"\",\"0.7\",\"1.3\",\"OK\",\"A2 - B2\"", StringComparison.Ordinal), "CSV FunTest numeric limits");
     Assert(csv.Contains("\"9.983\"", StringComparison.Ordinal), "CSV measured value");
     Assert(csv.EndsWith("\"LogEnd\"\r\n", StringComparison.Ordinal), "CSV terminator");
 
@@ -228,7 +228,49 @@ try
     Assert(txt.Contains("Group_Status=PASS", StringComparison.Ordinal), "HYTM TXT result");
     Assert(txt.Contains("EQUIPMENT_NO:ICT0001", StringComparison.Ordinal), "HYTM TXT equipment");
 
-    Console.WriteLine("YiDong EAP smoke test passed.");
+    var jointPlugin = new Yidong2Exporter();
+    var eapFields = csvPlugin.GetConfigFields();
+    var jointFields = jointPlugin.GetConfigFields();
+    Assert(jointFields.Count == eapFields.Count + 1, "joint exporter adds only companion directory");
+    Assert(eapFields.Zip(jointFields).All(pair => pair.First.Key == pair.Second.Key
+        && pair.First.DefaultValue == pair.Second.DefaultValue
+        && pair.First.IsRequired == pair.Second.IsRequired), "joint EAP config compatibility");
+    using var companionStream = new MemoryStream(Encoding.UTF8.GetBytes(
+        "BarCode,TestResult,short test,GAP1,GAP2,GAP3,GAP4,GAP5,gap avg (upper-lower)\r\n"
+        + "SN-0001,PASS,0,1,2,3,4,5,3\r\n"));
+    var jointSnapshot = Yidong2Exporter.Merge(snapshot, companionStream, out _);
+    var jointDirectory = Path.Combine(outputDirectory, "joint");
+    var jointResult = await jointPlugin.ExportAsync(new ResultExportContext
+    {
+        Configuration = configuration,
+        Snapshot = jointSnapshot,
+        PluginOptions = new Dictionary<string, string>
+        {
+            ["OutputFormat"] = "BOTH",
+            ["CsvDirectory"] = jointDirectory,
+            ["ExportHorizontalCsv"] = "true",
+            ["HorizontalCsvDirectory"] = Path.Combine(jointDirectory, "horizontal"),
+            ["HorizontalCsvName"] = "JointCustom",
+            ["HytmTxtDirectory"] = Path.Combine(jointDirectory, "txt"),
+            ["DeviceId"] = "JOINT-DEVICE",
+            ["ProgramId"] = "JOINT-PROGRAM",
+            ["CompTestIndexes"] = "1,2,3,4,5,6,7,8,9",
+            ["FileSuffix"] = "JOINT",
+            ["HytmTitle"] = "Joint title"
+        }
+    });
+    Assert(jointResult.IsSuccess && jointResult.ExporterName == jointPlugin.Name, "joint BOTH export");
+    var jointPaths = jointResult.FilePath.Split("; ");
+    Assert(jointPaths.Length == 3 && jointPaths.All(File.Exists), "joint horizontal vertical and TXT paths");
+    var jointCsv = await File.ReadAllTextAsync(jointPaths.Single(path => path.EndsWith("_JOINT.csv")));
+    Assert(jointCsv.Contains("JOINT-DEVICE") && jointCsv.Contains("JOINT-PROGRAM")
+        && jointCsv.Contains("GAP5") && jointCsv.Contains("GAP AVG"), "joint metadata and companion values");
+    Assert((await File.ReadAllTextAsync(jointPaths.Single(path => path.EndsWith(".txt"))))
+        .StartsWith("Joint title"), "joint TXT parameters apply");
+    Assert(!(await jointPlugin.ExportAsync(new ResultExportContext { Snapshot = snapshot })).IsSuccess,
+        "joint exporter rejects missing companion results");
+
+    Console.WriteLine("YiDong EAP and Yidong2 smoke tests passed.");
     Console.WriteLine($"Validated MES requests: {server.Requests.Count}");
     Console.WriteLine($"Validated CSV: {exportResult.FilePath}");
 }

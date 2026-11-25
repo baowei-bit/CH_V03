@@ -36,6 +36,7 @@ public sealed class KunshanJiaLianYiConfigurationViewModel : DialogViewModelBase
         ExportFields = new[]
         {
             new PluginConfigFieldViewModel("CsvDirectory", "CSV目录", "", false, false, false, string.Empty, ExportOptions),
+            new PluginConfigFieldViewModel("HideSpecialItemTestValues", "特殊项测试值隐藏", "false", false, false, true, string.Empty, ExportOptions),
             new PluginConfigFieldViewModel("FailCsvDirectory", "FAIL CSV目录", "", false, false, false, string.Empty, ExportOptions),
             new PluginConfigFieldViewModel("DclDirectory", "DCL目录", "", false, false, false, string.Empty, ExportOptions),
             new PluginConfigFieldViewModel("CsvName", "CSV文件前缀", "", false, false, false, string.Empty, ExportOptions),

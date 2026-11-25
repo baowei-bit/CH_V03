@@ -15,11 +15,6 @@ public sealed class SinglePieceCsvResultExporter : IResultExporter
                 return ResultExportResult.Success("单片 CSV", "未启用单片 CSV", string.Empty);
             }
 
-            if (string.IsNullOrWhiteSpace(context.Snapshot.Barcode))
-            {
-                return ResultExportResult.Fail("单片 CSV", "条码为空，跳过单片 CSV 生成");
-            }
-
             var directory = context.Configuration.Output.SinglePieceCsvDirectory;
             if (string.IsNullOrWhiteSpace(directory))
             {
@@ -70,7 +65,7 @@ public sealed class SinglePieceCsvResultExporter : IResultExporter
         return ResultExportFileName.ApplyTestPieceSuffix(context, SanitizeFileName(name));
     }
 
-    private static string BuildHeader(ResultExportContext context)
+    internal static string BuildHeader(ResultExportContext context)
     {
         var fixedHeaders = new[]
         {
@@ -81,42 +76,42 @@ public sealed class SinglePieceCsvResultExporter : IResultExporter
         return Join(fixedHeaders.Concat(context.Snapshot.Items.Select(item => item.ItemName)));
     }
 
-    private static string BuildLowerLimitLine(ResultExportContext context)
+    internal static string BuildLowerLimitLine(ResultExportContext context)
     {
         return "Lower Limit----->," + Blank(13) + Join(context.Snapshot.Items.Select(item => item.LowerLimit));
     }
 
-    private static string BuildUpperLimitLine(ResultExportContext context)
+    internal static string BuildUpperLimitLine(ResultExportContext context)
     {
         return "Upper Limit----->," + Blank(13) + Join(context.Snapshot.Items.Select(item => item.UpperLimit));
     }
 
-    private static string BuildUnitLine(ResultExportContext context)
+    internal static string BuildUnitLine(ResultExportContext context)
     {
         return "Measurement Unit----->,,,,,Sec," + Blank(8) + Join(context.Snapshot.Items.Select(item => item.Unit));
     }
 
-    private static string BuildResultLine(ResultExportContext context)
+    internal static string BuildResultLine(ResultExportContext context)
     {
         var values = new List<string>
         {
             context.Snapshot.Barcode,
             context.ResultText,
-            context.Configuration.Output.CsvName,
+            context.IsJingWangAccount ? context.Configuration.Mes.PluginOptions.GetValueOrDefault("Product", "") : context.Configuration.Output.CsvName,
             context.StartTime.ToString("yyyy/M/d H:mm:ss"),
             context.EndTime.ToString("yyyy/M/d H:mm:ss"),
             context.Snapshot.Elapsed.TotalSeconds.ToString("F7"),
             string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => item.ItemName)),
-            string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => item.TestValue)),
+            string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => SpecialTestValue.CsvValue(context, item))),
             context.GetOption("Module", "A"),
             context.Configuration.Mes.PackNo,
-            context.Configuration.Identity.TestType,
+            context.IsJingWangAccount ? context.Configuration.Mes.PluginOptions.GetValueOrDefault("SpecCode", "") : context.Configuration.Identity.TestType,
             context.Configuration.Identity.TestProgram,
             context.Guid,
-            context.Configuration.Mes.UserNo
+            context.IsJingWangAccount ? context.Configuration.Mes.PluginOptions.GetValueOrDefault("EmployeeCardCode", "") : context.Configuration.Mes.UserNo
         };
 
-        values.AddRange(context.Snapshot.Items.Select(item => item.TestValue));
+        values.AddRange(context.Snapshot.Items.Select(item => SpecialTestValue.CsvValue(context, item)));
         return Join(values);
     }
 

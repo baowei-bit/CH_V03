@@ -49,7 +49,9 @@
 | `ScannerWaitTimeoutSeconds` | `10` | 触发扫码后等待条码返回的最长秒数。 |
 | `TestItemRequestEnabled` | `false` | 是否向下位机请求测试项目/项目数量。 |
 | `TestItemRequestCommand` | `Itemnum\\r\\n` | 请求测试项目的下位机命令。 |
-| `LowerMachinePayloadTimeoutSeconds` | `60` | 下位机一条完整报文从开始接收到结束的最长秒数。 |
+| `LowerMachinePayloadTimeoutSeconds` | `200` | 下位机一条完整报文从开始接收到结束的最长秒数（整轮测试上限）。 |
+| `LowerMachineReceiveBufferMaximumCharacters` | `30000` | 未收到 `end` 时允许保留的下位机接收字符数上限；超过后清空缓存。 |
+| `TestItemRequestRetryIntervalSeconds` | `5` | 发送 `Itemnum` 后未收到 `Item1` 首段时，再次请求前的等待秒数；现场表头较长时可适当加大。 |
 | `BarcodeSendDefaultOkCommand` | `false` | 是否按条码指定字符自动发送放行命令。 |
 | `BarcodeSuccessCommandByValue` | `L=DMOK1\\r\\n;B=DMOK2\\r\\n` | 条码字符到放行命令的映射；格式为 `字符=命令;字符=命令`。 |
 
@@ -66,6 +68,16 @@
 | `IpAddress` | 网络地址 | 不使用 | 例如 `192.168.1.10`；服务端通常监听本机地址 |
 | `Port` | TCP 端口 | 不使用 | 例如 `5000` |
 | `TimeoutMilliseconds` | 连接/读写超时毫秒数 | 建议按设备协议填写 | 建议按网络情况填写 |
+
+摄像头内窥镜扫码使用 `Scanner.ConnectionType=5`。在“内窥镜画面与二维码识别”页面拖动鼠标框选码区，并点击“保存并启用内窥镜扫码”后，正式扫码会先尝试选区，失败时再识别整幅画面。点击“取消”不会保存选区。
+
+| 摄像头字段 | 含义与使用条件 | 未设置或关闭时 |
+| --- | --- | --- |
+| `CameraRoiX` / `CameraRoiY` | 选区左上角相对整幅原图的比例，范围 0–1。由页面画框自动保存，不需手填。 | 与宽高一起未设置时，识别整幅画面。 |
+| `CameraRoiWidth` / `CameraRoiHeight` | 选区宽高占原图的比例。适合码位固定、背景干扰较多的工位；选区外的码仍可通过全图兜底识别。 | 任一值为 0 时不使用选区。 |
+| `CameraNoReadImageDirectory` | 正式扫码或页面“立即抓图识码”返回 `NoRead` 时，保存完整、未经裁剪或增强的 PNG 原始帧。页面可选择目录；目录需允许写入。 | 空值使用当前 Windows 用户“文档\\CeHao\\NoReadFrames”；无法取得文档目录时使用本地应用数据目录。 |
+
+离线“打开图片识码”仅用于分析已有文件，不会再保存一份 NoRead 图片。保存目录不可写时，扫码仍返回 `NoRead`，页面或运行日志会提示保存失败。画质提醒是排查建议，应结合原始帧人工确认。
 
 ## 四、`Mes`：MES 总开关与通用连接信息
 

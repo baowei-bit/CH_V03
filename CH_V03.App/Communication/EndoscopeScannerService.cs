@@ -52,6 +52,20 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
     public bool IsOpen => _isOpen;
     public string Status => _status;
     public DeviceConnectionConfiguration Configuration => _configuration;
+    public string LastQualityAdvice { get; private set; } = string.Empty;
+    public string LastNoReadFramePath { get; private set; } = string.Empty;
+    public string LastNoReadSaveError { get; private set; } = string.Empty;
+
+    public static string DefaultNoReadImageDirectory
+    {
+        get
+        {
+            var root = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (string.IsNullOrWhiteSpace(root))
+                root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return System.IO.Path.Combine(root, "CeHao", "NoReadFrames");
+        }
+    }
 
     public void Configure(DeviceConnectionConfiguration configuration)
     {
@@ -130,7 +144,7 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         using var frame = await Task.Run(() => Cv2.ImDecode(System.IO.File.ReadAllBytes(path), ImreadModes.Color), cancellationToken);
         if (frame.Empty()) throw new InvalidOperationException("无法读取图片，请选择有效的 JPG、PNG 或 BMP 文件。");
-        return await DecodeSingleImageAsync(frame, cancellationToken);
+        return await DecodeSingleImageAsync(frame, false, cancellationToken);
     }
 
     /// <summary>Snapshot the latest captured frame before waiting for the decoder. Diagnostic only.</summary>
@@ -142,19 +156,24 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
         using var frame = CopyLatestFrame();
         if (frame is null || frame.Empty())
             throw new InvalidOperationException("尚未取得相机画面，请先应用参数并等待预览出现后再抓图。");
-        return await DecodeSingleImageAsync(frame, cancellationToken);
+        return await DecodeSingleImageAsync(frame, true, cancellationToken);
     }
 
-    private async Task<string?> DecodeSingleImageAsync(Mat frame, CancellationToken cancellationToken)
+    private async Task<string?> DecodeSingleImageAsync(Mat frame, bool saveOnNoRead, CancellationToken cancellationToken)
     {
         await _decodeGate.WaitAsync(cancellationToken);
         try
         {
-            return await Task.Run(() =>
+            var result = await Task.Run(() =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 return TryDecode(frame, out var text, cancellationToken) ? text : null;
             }, cancellationToken);
+            if (result is null && saveOnNoRead)
+            {
+                await RecordNoReadAsync(frame, cancellationToken);
+            }
+            return result;
         }
         finally { _decodeGate.Release(); }
     }
@@ -174,6 +193,7 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
         var previousBarcode = string.Empty;
         var consecutiveMatchCount = 0;
         using var fusedFrame = new Mat();
+        using var lastRawFrame = new Mat();
         var fusedFrameCount = 0;
         long lastVersion = -1;
         while (DateTime.UtcNow < stopAt)
@@ -191,6 +211,7 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
                 await Task.Delay(80, cancellationToken);
                 continue;
             }
+            frame.CopyTo(lastRawFrame);
 
             if (fusedFrameCount == 0)
             {
@@ -233,8 +254,63 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
             await Task.Delay(80, cancellationToken);
         }
 
-        SetStatus("未识别到二维码");
+        await RecordNoReadAsync(lastRawFrame, cancellationToken);
+        SetStatus($"未识别到码。{LastQualityAdvice}{(LastNoReadSaveError.Length > 0 ? " 原始帧保存失败：" + LastNoReadSaveError : string.Empty)}");
         BarcodeDetected?.Invoke(this, "NoRead");
+    }
+
+    private async Task RecordNoReadAsync(Mat originalFrame, CancellationToken cancellationToken)
+    {
+        LastNoReadFramePath = string.Empty;
+        LastNoReadSaveError = string.Empty;
+        try
+        {
+            LastQualityAdvice = originalFrame.Empty() ? "请检查相机画面是否正常。" : BuildQualityAdvice(originalFrame);
+        }
+        catch (OpenCVException)
+        {
+            LastQualityAdvice = "请检查码是否完整入镜、画面清晰度和照明。";
+        }
+        if (originalFrame.Empty()) return;
+
+        var directory = string.IsNullOrWhiteSpace(_configuration.CameraNoReadImageDirectory)
+            ? DefaultNoReadImageDirectory
+            : _configuration.CameraNoReadImageDirectory.Trim();
+        try
+        {
+            var path = System.IO.Path.Combine(directory,
+                $"NoRead_{DateTime.Now:yyyyMMdd_HHmmss_fff}_{Guid.NewGuid():N}.png");
+            await Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                System.IO.Directory.CreateDirectory(directory);
+                if (!Cv2.ImWrite(path, originalFrame))
+                    throw new System.IO.IOException("图像编码或写入失败。");
+            }, cancellationToken);
+            LastNoReadFramePath = path;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { LastNoReadSaveError = ex.Message; }
+    }
+
+    private string BuildQualityAdvice(Mat originalFrame)
+    {
+        using var area = CropConfiguredRoi(originalFrame) ?? originalFrame.Clone();
+        using var gray = ToGray(area);
+        if (gray.Empty()) return "请检查相机画面。";
+        Cv2.MeanStdDev(gray, out var mean, out var deviation);
+        if (mean.Val0 < 55) return "画面偏暗，请增加补光或检查曝光。";
+        using var highlights = new Mat();
+        Cv2.Threshold(gray, highlights, 245, 255, ThresholdTypes.Binary);
+        if (Cv2.CountNonZero(highlights) > gray.Rows * gray.Cols * 0.1)
+            return "码区有较多过亮区域，请降低补光、调整曝光或改变照射角度。";
+        if (mean.Val0 > 205) return "画面整体偏亮，请减弱补光或检查曝光设置。";
+        if (deviation.Val0 < 25) return "码区对比度偏低，请调整照明角度并确认码面完整。";
+        using var edges = new Mat();
+        Cv2.Laplacian(gray, edges, MatType.CV_64F);
+        Cv2.MeanStdDev(edges, out _, out var edgeDeviation);
+        if (edgeDeviation.Val0 < 20) return "码区细节偏少，请微调手动对焦并固定工件。";
+        return "请检查码是否完整入镜、大小足够，并尝试调整角度以避开反光。";
     }
 
     private static bool TryConfirmBarcode(string barcode, ref string previousBarcode, ref int consecutiveMatchCount)
@@ -393,6 +469,35 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
             return false;
         }
 
+        // 固定工位先识别已保存的选区；选区失效或码移出选区时仍保留全图兜底。
+        using var roi = CropConfiguredRoi(frame);
+        if (roi is not null && TryDecodeCore(roi, out text, cancellationToken)) return true;
+        return TryDecodeCore(frame, out text, cancellationToken);
+    }
+
+    private Mat? CropConfiguredRoi(Mat frame)
+    {
+        var config = _configuration;
+        if (config.CameraRoiWidth <= 0 || config.CameraRoiHeight <= 0
+            || config.CameraRoiX < 0 || config.CameraRoiY < 0
+            || config.CameraRoiX + config.CameraRoiWidth > 1.000001
+            || config.CameraRoiY + config.CameraRoiHeight > 1.000001) return null;
+
+        var marginX = config.CameraRoiWidth * 0.08;
+        var marginY = config.CameraRoiHeight * 0.08;
+        var left = Math.Clamp((int)Math.Floor((config.CameraRoiX - marginX) * frame.Width), 0, frame.Width - 1);
+        var top = Math.Clamp((int)Math.Floor((config.CameraRoiY - marginY) * frame.Height), 0, frame.Height - 1);
+        var right = Math.Clamp((int)Math.Ceiling((config.CameraRoiX + config.CameraRoiWidth + marginX) * frame.Width), left + 1, frame.Width);
+        var bottom = Math.Clamp((int)Math.Ceiling((config.CameraRoiY + config.CameraRoiHeight + marginY) * frame.Height), top + 1, frame.Height);
+        if (right - left < 40 || bottom - top < 40) return null;
+        using var view = new Mat(frame, new Rect(left, top, right - left, bottom - top));
+        return view.Clone();
+    }
+
+    private bool TryDecodeCore(Mat frame, out string text, CancellationToken cancellationToken)
+    {
+        text = string.Empty;
+
         // 保留原始画面优先识别，正常清晰二维码不会额外增加处理时间。
         if (TryDecodeCandidate(frame, out text))
         {
@@ -407,9 +512,10 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
         }
 
         // 内窥镜画面常见轻微失焦、反光或亮度不均。原图失败后再使用增强图重试。
-        foreach (var candidate in CreateEnhancedCandidates(frame))
+        var enhancedCandidates = CreateEnhancedCandidates(frame);
+        try
         {
-            using (candidate)
+            foreach (var candidate in enhancedCandidates)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (TryDecodeCandidate(candidate, out text))
@@ -418,6 +524,7 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
                 }
             }
         }
+        finally { foreach (var candidate in enhancedCandidates) candidate.Dispose(); }
 
         // 镭刻 DPM 码没有印刷码的纯黑白边界。DPM 路径会先消除金属背景、
         // 提取刻痕条纹并将同一单元内的纹理连接为完整模块，再仅重试 Data Matrix 解码。
@@ -598,9 +705,10 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
 
     private bool TryDecodeDpmDataMatrix(Mat frame, out string text)
     {
-        foreach (var candidate in CreateDpmCandidates(frame))
+        var candidates = CreateDpmCandidates(frame);
+        try
         {
-            using (candidate)
+            foreach (var candidate in candidates)
             {
                 if (TryDecodeDataMatrixWithZxing(candidate, out text))
                 {
@@ -608,6 +716,7 @@ public sealed class EndoscopeScannerService : IAsyncDisposable
                 }
             }
         }
+        finally { foreach (var candidate in candidates) candidate.Dispose(); }
 
         text = string.Empty;
         return false;

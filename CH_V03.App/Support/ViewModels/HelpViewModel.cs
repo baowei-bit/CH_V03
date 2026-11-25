@@ -10,9 +10,10 @@ public sealed class HelpViewModel : DialogViewModelBase
     public HelpViewModel(string productName, string mesPlugin)
     {
         ProductName = productName;
-        MesPlugin = string.IsNullOrWhiteSpace(mesPlugin) || string.Equals(mesPlugin, "None", StringComparison.OrdinalIgnoreCase)
-            ? "未配置"
-            : "已配置";
+        MesPlugin = CH_V03.App.Localization.UiLanguage.Text(
+            string.IsNullOrWhiteSpace(mesPlugin) || string.Equals(mesPlugin, "None", StringComparison.OrdinalIgnoreCase)
+                ? "未配置"
+                : "已配置");
         CloseCommand = new RelayCommand(() => Close(true));
     }
 
@@ -22,9 +23,11 @@ public sealed class HelpViewModel : DialogViewModelBase
 
     public string ProductTitle => "CeHao";
 
-    public string Version => $"当前版本：{ApplicationVersion.Current}";
+    public string Version => $"{CH_V03.App.Localization.UiLanguage.Text("当前版本：")}{ApplicationVersion.Current}";
 
-    public string VersionHistory =>
+    public string VersionHistory => CH_V03.App.Localization.UiLanguage.IsEnglish
+        ? CH_V03.App.Localization.UiLanguage.HelpHistory
+        :
         "CH_V02.87：华勤账号首次登录后自动记住本机登录状态；切换登录时免输入账号密码。手动扫码切换为自动扫码时，扫码枪通讯方式自动恢复为串口并重连。"
         + "\n\nCH_V02.85：HongXin 主界面移除批次号，生产流程单号作为流程单开工依据；首次填写或切换流程单号时开工，同一流程单号不重复开工。"
         + "\n\nCH_V02.84：HongXin MES 的开工、产能和过站流程单号统一取主界面生产流程单号，不再误用工单号。"

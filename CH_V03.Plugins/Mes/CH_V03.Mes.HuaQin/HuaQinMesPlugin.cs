@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -313,7 +314,7 @@ public sealed class HuaQinMesPlugin : IMesPlugin
         AddFailureCodes(payload, "qc_reason", options, request);
 
         var json = JsonSerializer.Serialize(payload);
-        var diagnostics = $"请求：POST {endpoint}\n请求头：Content-Type=application/x-www-form-urlencoded\n请求体：topic=honsoft.prodata\njson={json}";
+        var diagnostics = $"请求：POST {endpoint}\n请求头：Content-Type=application/x-www-form-urlencoded\n请求体：topic=honsoft.prodata\njson={RedactFileDataForDiagnostics(json)}";
         try
         {
             using var client = CreateClient(options);
@@ -359,7 +360,7 @@ public sealed class HuaQinMesPlugin : IMesPlugin
     private static async Task<MesResult> PostJsonAsync(MesPluginOptions options, string endpoint, object payload, bool requireCode200, string action, CancellationToken cancellationToken)
     {
         var json = JsonSerializer.Serialize(payload);
-        var diagnostics = $"请求：POST {endpoint}\n请求头：Content-Type=application/json；Authorization=Basic（已脱敏）；MACIP={options.Get("MesTerminalMac")}；maname={options.Get("MesTerminalName")}；user_id={options.Get("MesOperatorId")}\n请求体：{json}";
+        var diagnostics = $"请求：POST {endpoint}\n请求头：Content-Type=application/json；Authorization=Basic（已脱敏）；MACIP={options.Get("MesTerminalMac")}；maname={options.Get("MesTerminalName")}；user_id={options.Get("MesOperatorId")}\n请求体：{RedactFileDataForDiagnostics(json)}";
         try
         {
             using var client = CreateClient(options);
@@ -398,7 +399,7 @@ public sealed class HuaQinMesPlugin : IMesPlugin
             }
 
             return code == successCode
-                ? MesResult.Success($"{action}成功{(string.IsNullOrWhiteSpace(message) ? string.Empty : $"：{message}")}", code.ToString(), raw, diagnostics)
+                ? MesResult.Success($"{action}成功{(string.IsNullOrWhiteSpace(message) ? string.Empty : $"：{message}")}", code: code.ToString(), rawResponse: raw, diagnostics: diagnostics)
                 : MesResult.Fail($"{action}失败：{message}", code.ToString(), raw, diagnostics);
         }
         catch (JsonException ex)
@@ -443,6 +444,31 @@ public sealed class HuaQinMesPlugin : IMesPlugin
                 ["load_path"] = file.FilePath
             })
             .ToList();
+    }
+
+    private static string RedactFileDataForDiagnostics(string json)
+    {
+        var node = JsonNode.Parse(json);
+        RedactFileData(node);
+        return node?.ToJsonString() ?? json;
+    }
+
+    private static void RedactFileData(JsonNode? node)
+    {
+        if (node is JsonObject obj)
+        {
+            foreach (var property in obj.ToArray())
+            {
+                if (string.Equals(property.Key, "file_data", StringComparison.OrdinalIgnoreCase))
+                    obj[property.Key] = "<CSV Base64 内容已省略>";
+                else
+                    RedactFileData(property.Value);
+            }
+        }
+        else if (node is JsonArray array)
+        {
+            foreach (var item in array) RedactFileData(item);
+        }
     }
 
     private static List<Dictionary<string, object?>> BuildCharacteristicItems(MesPluginOptions options, MesUploadRequest request)

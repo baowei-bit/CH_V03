@@ -30,6 +30,14 @@ public sealed class TestFlowOptions
 
     public bool RequireNumericTestValues { get; set; }
 
+    public static TestFlowOptions ForNoScan() => new()
+    {
+        AutoScan = false,
+        NoScanMode = true,
+        // NOSCAN+时间是本机测试标识，不能套用默认的 12 位产品条码长度校验。
+        BarcodeLength = string.Empty
+    };
+
     public static TestFlowOptions FromConfiguration(AppConfiguration configuration)
     {
         return new TestFlowOptions
@@ -41,7 +49,8 @@ public sealed class TestFlowOptions
             AutoScan = configuration.User.AutoScan,
             ManualScanMode = configuration.User.ManualScanMode,
             NoScanMode = configuration.User.NoScanMode,
-            RequireNumericTestValues = configuration.User.Jly.RequireNumericTestValues
+            RequireNumericTestValues = configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration
+                && configuration.User.Jly.RequireNumericTestValues
         };
     }
 }

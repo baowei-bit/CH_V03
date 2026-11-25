@@ -15,6 +15,7 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
         return new[]
         {
             Field("CsvDirectory", "CSV目录"),
+            new ExportPluginConfigField { Key = SpecialTestValue.OptionKey, DisplayName = "特殊项测试值隐藏", DefaultValue = "false", IsCheckbox = true },
             Field("DclDirectory", "DCL目录"),
             Field("CsvName", "CSV文件前缀"),
             Field("TesterId", "测试员/治具字段"),
@@ -55,9 +56,9 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
         if (!exists)
         {
             await writer.WriteLineAsync(BuildCsvHeader(context));
-            await writer.WriteLineAsync(BuildLimitLine("Lower Limit----->", context.Snapshot.Items.Select(item => item.LowerLimit)));
-            await writer.WriteLineAsync(BuildLimitLine("Upper Limit----->", context.Snapshot.Items.Select(item => item.UpperLimit)));
-            await writer.WriteLineAsync(BuildLimitLine("Measurement Unit----->", context.Snapshot.Items.Select(item => item.Unit)));
+            await writer.WriteLineAsync(BuildLimitLine("Upper Limits-->", context.Snapshot.Items.Select(item => WithUnit(item.UpperLimit, item.Unit))));
+            await writer.WriteLineAsync(BuildLimitLine("Lower Limits-->", context.Snapshot.Items.Select(item => WithUnit(item.LowerLimit, item.Unit))));
+            await writer.WriteLineAsync(BuildLimitLine("Measurement Unit-->", context.Snapshot.Items.Select(item => item.Unit)));
         }
 
         await writer.WriteLineAsync(BuildCsvResultLine(context));
@@ -110,7 +111,7 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
             context.EndTime.ToString("yyyy/MM/dd HH:mm:ss"),
             context.TestSeconds.ToString("F2"),
             string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => item.ItemName)),
-            string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => item.TestValue)),
+            string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => SpecialTestValue.CsvValue(context, item))),
             context.GetOption("Holder", "A"),
             context.GetOption("Slot", "1"),
             context.GetOption("TestType", context.Configuration.Identity.TestType),
@@ -121,7 +122,7 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
             string.Empty
         };
 
-        values.AddRange(context.Snapshot.Items.Select(item => item.TestValue));
+        values.AddRange(context.Snapshot.Items.Select(item => SpecialTestValue.CsvValue(context, item)));
         return Join(values);
     }
 
@@ -143,7 +144,7 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
             "0",
             "1",
             context.Configuration.User.LoginJobNo,
-            string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => item.ItemName)),
+            string.Concat(context.Snapshot.Items.Select(item => item.IsPass ? "P" : "F")),
             "1",
             context.Snapshot.IsPass == true ? "P" : "F",
             "0",
@@ -174,18 +175,18 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
         {
             item.Index.ToString(),
             item.ItemName,
-            item.TestValue,
+            "NA",
+            "NA",
+            "000",
+            WithUnit(item.UpperLimit, item.Unit),
+            WithUnit(item.LowerLimit, item.Unit),
             string.Empty,
-            "0",
-            item.UpperLimit,
-            item.LowerLimit,
             string.Empty,
-            item.Unit,
             EmptyAsNa(item.PointA),
             EmptyAsNa(item.PointB),
             string.Empty,
-            "NA",
-            item.TestValue,
+            "0",
+            WithUnit(item.TestValue, item.Unit),
             "NA",
             item.IsPass ? "0" : "1"
         });
@@ -205,6 +206,18 @@ public sealed class SuzhouJiaLianYiLuEnZeExportPlugin : IResultExportPlugin
     private static string EmptyAsNa(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? "NA" : value;
+    }
+
+    private static string WithUnit(string value, string unit)
+    {
+        if (string.IsNullOrWhiteSpace(value) || string.Equals(value.Trim(), "NA", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(unit)
+            || value.TrimEnd().EndsWith(unit, StringComparison.OrdinalIgnoreCase))
+        {
+            return value;
+        }
+
+        return value + unit;
     }
 
     private static string Blank(int count)

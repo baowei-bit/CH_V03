@@ -7,6 +7,13 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../CH_V03.Core/CH_V03.Core.csproj" />
+    <ProjectReference Include="../CH_V03.Plugins/Export/CH_V03.Export.YiDongEap/CH_V03.Export.YiDongEap.csproj" />
+    <ProjectReference Include="../CH_V03.Plugins/Export/CH_V03.Export.JiaLianYi/CH_V03.Export.JiaLianYi.csproj" />
+    <ProjectReference Include="../CH_V03.Plugins/Export/CH_V03.Export.SuzhouJiaLianYiLuEnZe/CH_V03.Export.SuzhouJiaLianYiLuEnZe.csproj" />
     <Compile Include="../CH_V03.App/Authentication/Services/AuthenticationService.cs" Link="AuthenticationService.cs" />
+    <Compile Include="../CH_V03.App/Authentication/ViewModels/UserConfigurationViewModel.cs" Link="UserConfigurationViewModel.cs" />
+    <Compile Include="../CH_V03.App/Shared/ViewModels/ViewModelBase.cs" Link="ViewModelBase.cs" />
+    <Compile Include="../CH_V03.App/Shared/ViewModels/DialogViewModelBase.cs" Link="DialogViewModelBase.cs" />
+    <Compile Include="../CH_V03.App/Shared/Commands/RelayCommand.cs" Link="RelayCommand.cs" />
   </ItemGroup>
 </Project>

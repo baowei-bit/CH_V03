@@ -339,6 +339,31 @@
                             </Border>
 
                             <Border BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <CheckBox Content="用 IsOpen 回复判断连接成功"
+                                              IsChecked="{Binding DataContext.Configuration.Communication.LowerMachineHandshakeEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
+                                              Margin="0,0,0,10" />
+                                    <UniformGrid Columns="2">
+                                        <StackPanel Margin="0,0,10,0">
+                                            <TextBlock Style="{StaticResource Label}" Text="握手发送命令" />
+                                            <TextBox Text="{Binding DataContext.Configuration.Communication.LowerMachineHandshakeCommand, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource Label}" Text="握手期望回复" />
+                                            <TextBox Text="{Binding DataContext.Configuration.Communication.LowerMachineHandshakeResponse, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </UniformGrid>
+                                    <TextBlock Text="默认发送 IsOpen，独立收到 1 才算成功；等待时长使用上方超时(ms)。仅在下位机支持此命令时启用。"
+                                               Foreground="#52606D" TextWrapping="Wrap" Margin="0,8,0,0" />
+                                    <CheckBox Content="用 Itemnum 表头响应判断连接成功"
+                                              IsChecked="{Binding DataContext.Configuration.Communication.LowerMachineItemHandshakeEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
+                                              Margin="0,14,0,0" />
+                                    <TextBlock Text="启用后连接时发送上方的测试项请求命令，收到完整有效的 Item1...;end 才算成功。两种握手方式只能选一种，勾选时自动取消另一项；都不选时以串口打开为准。"
+                                               Foreground="#52606D" TextWrapping="Wrap" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border BorderBrush="#7DD3FC" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Style.Triggers>
@@ -359,7 +384,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Button Content="测试下位机连接"
+                            <Button Content="测试下位机端口"
                                     Command="{Binding DataContext.TestLowerMachineCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     Height="34" />
                             <TextBlock Text="{Binding DataContext.LowerMachineTestMessage, RelativeSource={RelativeSource AncestorType=Window}}"

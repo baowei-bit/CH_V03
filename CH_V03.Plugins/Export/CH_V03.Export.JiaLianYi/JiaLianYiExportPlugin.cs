@@ -14,6 +14,7 @@ public sealed class JiaLianYiExportPlugin : IResultExportPlugin
         return new[]
         {
             Field("CsvDirectory", "CSV目录"),
+            new ExportPluginConfigField { Key = SpecialTestValue.OptionKey, DisplayName = "特殊项测试值隐藏", DefaultValue = "false", IsCheckbox = true },
             Field("FailCsvDirectory", "FAIL CSV目录"),
             Field("DclDirectory", "DCL目录"),
             Field("CsvName", "CSV文件前缀"),
@@ -103,7 +104,8 @@ public sealed class JiaLianYiExportPlugin : IResultExportPlugin
             extension = "." + extension;
         }
 
-        var fileName = context.Configuration.User.Jly.UseSnTimeForTxtFileName && string.Equals(extension, ".txt", StringComparison.OrdinalIgnoreCase)
+        var fileName = context.Configuration.Compatibility.EnableKunshanJiaLianYiDedicatedConfiguration
+            && context.Configuration.User.Jly.UseSnTimeForTxtFileName && string.Equals(extension, ".txt", StringComparison.OrdinalIgnoreCase)
             ? $"{MakeValidFileName(context.Snapshot.Barcode)}_{DateTime.Now:yyMMddHHmmss}"
             : MakeValidFileName(context.Snapshot.Barcode);
         var filePath = Path.Combine(directory, ResultExportFileName.ApplyTestPieceSuffix(context, fileName + extension));
@@ -195,12 +197,12 @@ public sealed class JiaLianYiExportPlugin : IResultExportPlugin
             context.EndTime.ToString("yyyy/MM/dd HH:mm:ss"),
             context.TestSeconds.ToString("F2"),
             string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => item.ItemName)),
-            string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => item.TestValue)),
+            string.Join(';', context.Snapshot.Items.Where(item => !item.IsPass).Select(item => SpecialTestValue.CsvValue(context, item))),
             context.GetOption("SwVersion", context.Configuration.Identity.TestProgram),
             context.Guid
         };
 
-        values.AddRange(context.Snapshot.Items.Select(item => item.TestValue));
+        values.AddRange(context.Snapshot.Items.Select(item => SpecialTestValue.CsvValue(context, item)));
         return Join(values);
     }
 
